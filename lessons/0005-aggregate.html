@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 5 课 · 聚合：一次改动该覆盖多大范围</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<article>
+  <p class="kicker">第 5 课 · 战术设计 · 约 16 分钟</p>
+  <h1>聚合：一次改动该覆盖多大范围</h1>
+  <p class="lede">战术设计最难、也最值钱的一块。前一课你学会了怎么给对象分类；这一课你要学会<strong>在它们之间画一条线</strong>——线内同时成立，线外各管各的。</p>
+
+  <div class="card">
+    <p><strong>你在地图上的位置：</strong>你已经能把一个概念判成<a href="0004-entity-vs-value-object.html">实体或值对象</a>了。
+    但真实系统里对象从不单独存在——它们互相牵扯。聚合就是回答：<em>这堆互相牵扯的东西，哪些必须捆在一起改？</em>
+    随时打开 <a href="../reference/ddd-map.html">DDD 全景地图</a> 定位。</p>
+  </div>
+
+  <h2>先热身：回顾检查</h2>
+  <p>两道回扣第 4 课的题。凭记忆作答。</p>
+  <div id="review"></div>
+
+  <h2>问题：规则不长在单个对象身上</h2>
+  <p>先看一条业务规则，来自你的生鲜电商：</p>
+
+  <div class="card">
+    <p style="font-size:1.05rem"><strong>「一张订单的总额，不得超过该客户的信用额度。」</strong></p>
+  </div>
+
+  <p>请你认真想三秒：<strong>这条规则该由谁来保证？</strong></p>
+  <p><code>OrderLine</code> 不行——它只知道自己那 60 块，不知道兄弟们加起来多少。
+  <code>Money</code> 更不行，它连自己属于哪张订单都不知道。
+  这条规则<strong>不长在任何一个对象身上，它长在一群对象的「总和」上</strong>。
+  于是它无家可归，最后往往漂到 service 层、controller 层，甚至前端——领域模型退化成一堆数据袋子。</p>
+
+  <p>更糟的是并发。两个人同时往这张订单里加东西，各自加之前都检查了「没超额」，各自都通过，
+  最后总额超了两倍——而每一步都是「合法」的。Evans 开篇讲的就是这个：</p>
+
+  <blockquote>
+    Objects are supposed to maintain their own internal consistent state, but they can be blindsided
+    by changes in other objects that are conceptually constituent parts.
+    <span class="zh">（对象本该维护自己内部状态的一致性，但它们会被「概念上属于自己组成部分」的其他对象的变化打个措手不及。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Aggregates"（第 16 页）</cite>
+  </blockquote>
+
+  <h2>解法：画一条线，指定一个守门人</h2>
+  <p>Evans 的处方，这段值得逐句读——整个战术设计里信息密度最高的一段：</p>
+
+  <blockquote>
+    Therefore: <strong>Cluster the entities and value objects into aggregates and define boundaries around each.</strong>
+    Choose one entity to be the <strong>root</strong> of each aggregate, and allow external objects to hold references
+    to the root only […]. Define properties and <strong>invariants for the aggregate as a whole</strong> and give
+    enforcement responsibility to the root […]. Use the same aggregate boundaries to govern transactions and distribution.
+    <span class="zh">（因此：把实体和值对象聚成「聚合」，为每个聚合划定边界。为每个聚合选一个实体做「根」，
+    只允许外部对象持有对根的引用。为聚合<em>整体</em>定义属性与不变量，并把「强制执行」的责任交给根。
+    用同一条聚合边界来管辖事务与分布。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Aggregates"（第 16 页）</cite>
+  </blockquote>
+
+  <p>拆成四件事，你只要记住它们：</p>
+  <ol>
+    <li><strong>边界</strong>——一圈线，圈住一簇实体和值对象。</li>
+    <li><strong>根</strong>——圈里选一个实体当门。外面的人只能跟它说话。</li>
+    <li><strong>不变量</strong>——那条「总和不得超额」的规则，属于整个圈，由根来守。</li>
+    <li><strong>事务</strong>——这条线同时就是事务的线。<em>圈内立刻一致，跨圈事后一致。</em></li>
+  </ol>
+
+  <p>第 4 点是最多人漏掉、也最有杀伤力的一句。Evans 紧接着补了刀：
+  <em>Within an aggregate boundary, apply consistency rules synchronously. Across boundaries, handle updates asynchronously.</em>
+  （边界内同步保证一致；跨边界异步更新。）
+  <strong>换句话说：一个事务只改一个聚合。</strong>你画聚合的时候，其实是在画事务。</p>
+
+  <h2>边界画在哪：让不变量说话</h2>
+  <p>新手常问「订单要不要把客户装进来？」——问法就错了。<strong>正确的问法是：哪些东西必须<em>同时</em>正确？</strong></p>
+
+  <div class="ctx-map cols-2">
+    <div class="ctx-box">
+      <h4>Order 聚合</h4>
+      <p class="ctx-sub">不变量：总额 ≤ 信用额度</p>
+      <ul>
+        <li><span class="ctx-word">Order</span> ← 根（唯一的门）</li>
+        <li>OrderLine ×N（内部实体）</li>
+        <li>ShippingAddress（值对象）</li>
+        <li>CustomerId ← 只是<em>一个 id</em></li>
+      </ul>
+    </div>
+    <div class="ctx-box">
+      <h4>Customer 聚合</h4>
+      <p class="ctx-sub">不变量：它自己的那些规则</p>
+      <ul>
+        <li><span class="ctx-word">Customer</span> ← 根</li>
+        <li>信用额度、等级、联系方式</li>
+        <li>它<em>不知道</em>订单的存在</li>
+        <li>改它，跟改订单是两个事务</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>为什么客户不在订单圈里？因为<strong>没有任何规则要求「客户和订单必须同时正确」</strong>。
+  客户改个手机号，跟这张订单的总额毫无关系——硬捆在一起，你就是在为一条不存在的规则付事务的钱。
+  于是订单只持有 <code>CustomerId</code>，这是 Vaughn Vernon 那条著名的
+  <strong>「跨聚合只用 id 引用」</strong>（<a href="https://www.dddcommunity.org/library/vernon_2011/">Effective Aggregate Design</a>）。</p>
+
+  <p>这条规则对你有额外的红利：<strong>C++ 里「按 id 引用」意味着 <code>Order</code> 根本不需要 <code>Customer</code> 的定义</strong>——
+  不用包含它的头文件，不用管它的生命周期，没有悬垂指针，编译依赖也断了。
+  你为了编译速度做了十年的解耦，DDD 说那正好是正确的领域建模。</p>
+
+  <h2>C++：根就是那道门</h2>
+  <p>把上面四件事翻译成代码。注意成员的<strong>持有方式</strong>——那才是边界的真身：</p>
+
+  <pre><code>class Order {                       // ← the aggregate ROOT
+ public:
+  Order(OrderId id, CustomerId customer, Money credit_limit);
+
+  // The ONLY way in. The invariant is checked here, on the whole
+  // aggregate, before any state changes.
+  void add_line(Sku sku, int qty, Money unit_price) {
+    OrderLine candidate{std::move(sku), qty, std::move(unit_price)};
+    const Money would_be = total().plus(candidate.subtotal());
+    if (credit_limit_ &lt; would_be)
+      throw std::domain_error{"order total would exceed credit limit"};
+    lines_.push_back(std::move(candidate));   // only now do we mutate
+  }
+
+  Money total() const;
+
+  // Read-only window. NOT a mutable handle. See the trap below.
+  const std::vector&lt;OrderLine&gt;&amp; lines() const { return lines_; }
+
+ private:
+  OrderId                id_;
+  CustomerId             customer_id_;  // another aggregate, held BY ID
+  Money                  credit_limit_;
+  std::vector&lt;OrderLine&gt; lines_;        // parts, owned BY VALUE
+};</code></pre>
+
+  <div class="card">
+    <p><strong>读这段代码的正确姿势——三行 private 成员就把整个模式说完了：</strong></p>
+    <ul>
+      <li><code>std::vector&lt;OrderLine&gt; lines_</code> —— <strong>按值持有</strong>。订单行是订单的一部分，
+      随订单生死，外面没人能单独拿到一个 <code>OrderLine</code>。<em>不是</em> <code>vector&lt;shared_ptr&lt;OrderLine&gt;&gt;</code>——
+      那等于公开宣布「欢迎外面的人抓着我的零件」，边界当场作废。</li>
+      <li><code>CustomerId customer_id_</code> —— <strong>按 id 持有</strong>。客户是另一个聚合，隔壁老王，不归我管。
+      <em>不是</em> <code>Customer*</code>，也不是 <code>shared_ptr&lt;Customer&gt;</code>。</li>
+    </ul>
+    <p style="margin-bottom:0.25rem"><strong>所以在 C++ 里，聚合边界不是注释，是类型。</strong>值 = 圈内，id = 圈外。
+    读一眼成员声明就知道这条线画在哪——这是 Java 里享受不到的清晰度（那边一切皆引用，两种情况长得一模一样）。</p>
+  </div>
+
+  <h2>C++ 专属陷阱：一个 <code>&amp;</code> 就能拆掉整道门</h2>
+  <p>这个坑你几乎一定会踩，因为它是 C++ 程序员的肌肉记忆——「加个非 const 版本的 getter 嘛，多方便」：</p>
+
+  <div class="compare">
+    <figure>
+      <figcaption class="bad-label">✗ 边界漏了</figcaption>
+      <pre><code>// Looks harmless. Idiomatic, even.
+std::vector&lt;OrderLine&gt;&amp; lines() {
+  return lines_;
+}
+
+// Somewhere in a service, 3 months later:
+order.lines().push_back(
+    OrderLine{Sku{"GOLD"}, 1, Money{999'999, "CNY"}});
+
+// Compiles. Runs. No warning. No exception.
+// The credit limit was never checked — the caller
+// walked straight past add_line() into the guts.
+// Your invariant is now a lie.</code></pre>
+    </figure>
+    <figure>
+      <figcaption class="good-label">✓ 门是唯一入口</figcaption>
+      <pre><code>// Read: yes. Mutate: only through the root.
+const std::vector&lt;OrderLine&gt;&amp; lines() const {
+  return lines_;
+}
+
+void add_line(Sku, int, Money);   // checks invariant
+void remove_line(const Sku&amp;);     // checks invariant
+
+// Want to change a line's qty? You do NOT reach in.
+// You ask the root, and the root re-checks the whole
+// aggregate:
+void change_qty(const Sku&amp;, int new_qty);</code></pre>
+    </figure>
+  </div>
+
+  <p>左边那段就是 Evans 说的 <em>blindsided by changes in other objects</em> 的字面实现。
+  注意它<strong>有多安静</strong>——不报错、不告警、不抛异常，只是你的不变量从此变成一句空话，
+  而事故会在三个月后以「为什么这个客户欠了一百万」的形式出现。</p>
+
+  <div class="card">
+    <p><strong>本课代码全部真编译过。</strong><code>code/lesson5_check.cc</code>，clang 17 / <code>-std=c++20 -Wall -Wextra</code> 零告警，
+    跑了 9 条断言，包括：超额的行被拒绝<em>且聚合毫发无损</em>（没有半应用的状态）、
+    正好卡在额度上要放行、以及<strong>上面那个泄漏 getter 确实能把总额搞到 9999.99 而无人吭声</strong>——
+    那条断言写的是 <code>assert(limit &lt; o.total())</code>，用绿色的测试证明了一件坏事真的会发生。跑法见 <a href="../code/README.md">code/README.md</a>。</p>
+  </div>
+
+  <h2>护栏：别把聚合画大</h2>
+  <p>你已经知道<a href="0003-subdomains.html">「DDD 不是处处适用」</a>，这里是同一个警惕心的战术版。
+  新手学完聚合的第一反应是画个大圈——「订单、客户、库存、物流都相关，都圈进来，多安全」。
+  <strong>这是灾难。</strong>圈越大，事务越大，锁越大，并发越差。Evans 第一句就点了名：
+  <em>Cautious database locking schemes cause multiple users to interfere pointlessly with each other and can make a system unusable.</em>
+  （谨小慎微的数据库锁策略会让用户之间毫无意义地互相干扰，甚至让系统没法用。）</p>
+
+  <p>「毫无意义地」（pointlessly）是关键词。<strong>只有真正的不变量才配得到一条边界。</strong>
+  「下单后要扣库存」听起来很像必须同时发生，但它不是不变量，它是<em>业务流程</em>——
+  电商界的现实是：先下单，库存事后扣，扣不出来就道歉退款。世界照转。
+  硬要它们强一致，你换来的是一个卡死的系统，和一条业务方从没要求过的保证。</p>
+
+  <div class="card" style="border-color:var(--accent)">
+    <p><strong>一句话记住这一课：</strong>聚合边界 = 一致性边界 = 事务边界。
+    画线之前先问「哪条规则要求它们<em>同时</em>正确」——问不出规则，就别画那条线。</p>
+  </div>
+
+  <h2>练一练：什么在圈里，什么在圈外</h2>
+  <p><strong>场景：</strong>生鲜电商的<strong>「销售上下文」</strong>，你正在设计 <code>Order</code> 聚合，
+  不变量是「订单总额不得超过客户信用额度」。每一项：在边界内，还是边界外？</p>
+  <div id="sort"></div>
+
+  <h2>试一试</h2>
+  <div id="quiz"></div>
+
+  <h2>主推读物</h2>
+  <p>本课首选延伸阅读：Vaughn Vernon 的
+  <a href="https://www.dddcommunity.org/library/vernon_2011/"><strong>Effective Aggregate Design</strong></a>（三篇 PDF，免费，dddcommunity.org 官方发布）。
+  这是聚合这个主题上<strong>公认最好的一手材料</strong>，没有之一——他从一个画得过大的聚合出发，
+  一步步重构到正确的边界，并提炼出四条经验法则（真不变量才建边界／聚合要小／跨聚合用 id 引用／边界外用最终一致性）。
+  <strong>先读 Part I</strong>（约 15 页），这一课基本就是它的前半段。示例是 Java，但你现在有能力自己翻译了。
+  一手定义见 <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a> 第 16 页 "Aggregates"，本课引文都出自那一页。</p>
+
+  <footer class="lesson-footer">
+    <p><strong>做完把分数告诉我</strong>——三个区各自的得分都要，我按结果决定下一课的难度。</p>
+    <p><strong>有不清楚的？</strong>问我。这一课常见的卡点：
+    「那扣库存到底怎么写？」（——这正是<strong>领域事件</strong>的入口，下一课）
+    「聚合根该不该禁用拷贝？」（——你上一课就想问了。现在可以答了：根的标识唯一，
+    一个默认拷贝构造会造出两个 id 相同的『同一张订单』，通常该 <code>= delete</code>）
+    「聚合怎么存进数据库？总不能每次加载全部订单行吧」（——引出<strong>仓储</strong>）</p>
+    <p><strong>下一课预告：领域事件（Domain Event）</strong>——你刚画完边界，
+    立刻就会遇到那个问题：<em>边界外面的事，怎么办？</em>订单确认了，库存要扣、积分要加、短信要发，
+    可它们都在别的聚合里。答案不是把圈画大，而是喊一嗓子：「OrderConfirmed！」</p>
+  </footer>
+</article>
+
+<script src="../assets/categorize.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz(document.getElementById("review"), [
+  {
+    stem: "同事把 Address 建成了带自增 id 的实体，理由是「以后要按地址查询」。这个推理错在哪？",
+    options: [
+      "查询需求不构成标识",
+      "地址永远都是值对象",
+      "自增标识的性能不好",
+      "实体不能存进数据库"
+    ],
+    answer: 0,
+    explain: "「我要查它」是持久化和检索的需求，不是「两个属性全同的地址是两个不同东西」的理由。判据永远是那一问：属性全相同的两个，是不是一回事？值对象照样能查、能存——查询方式是存储层的事，不该反过来决定领域模型（这是第 4 课那道「数据库里是否有独立的表」干扰项的同一个病）。注意选项 B 也是错的：在地址库上下文里，地址就是实体。"
+  },
+  {
+    stem: "Money 该用 `operator==(...) const = default`，Order 绝不能——同一个 C++ 特性，为什么两个相反的答案？",
+    options: [
+      "取决于什么叫同一个",
+      "取决于成员数量多少",
+      "取决于是否可变对象",
+      "取决于是否进数据库"
+    ],
+    answer: 0,
+    explain: "Money 的身份就是它的属性，所以逐成员比较正是对的；Order 的身份是 id，逐成员比较会把两张内容相同的不同订单判成同一张——实体退化成值对象。分野不在语法，在你对 The model must define what it means to be the same thing 的回答。这一课你会看到它的延伸：同样是「持有一个成员」，按值持有和按 id 持有，划出的是聚合的里和外。"
+  }
+], {
+  perfect: "实体／值对象扎实了。可以开始画边界。",
+  imperfect: "先回第 4 课扫一眼——这一课要站在它上面。"
+});
+
+renderCategorize(document.getElementById("sort"), {
+  perfect: "你已经会用「哪条规则要求同时正确」来画线了。",
+  imperfect: "看看答错那条——判据只有一个：有没有一条不变量要求它和订单同时正确。",
+  buckets: ["边界内", "边界外"],
+  items: [
+    {
+      text: "「订单行（OrderLine）：2 份苹果，单价 30 元。」",
+      bucket: 0,
+      explain: "边界内。「总额不得超额」这条不变量算的就是它们的和——不把它们圈进来，根本没法在改动的那一刻检查规则。而且它们随订单生死，外面没人需要单独持有一个订单行。C++ 里就是 std::vector<OrderLine> 按值持有。"
+    },
+    {
+      text: "「客户（Customer）：他的等级、信用额度、手机号。」",
+      bucket: 1,
+      explain: "边界外，只留一个 CustomerId。别被「订单要用到信用额度」骗了——用到 ≠ 必须同时改。没有任何规则要求「客户改手机号时订单必须同时正确」。圈进来你就得为一条不存在的规则付事务和锁的代价。这是 Vernon 的「跨聚合用 id 引用」。"
+    },
+    {
+      text: "「收货地址：广州市天河区 xx 路 5 号 301。」",
+      bucket: 0,
+      explain: "边界内，作为值对象。注意这是一份「快照」——订单记下的是下单那一刻的地址，客户以后改地址不该让历史订单跟着变。这恰恰说明它属于订单：它的正确性只对这张订单有意义。（它是第 4 课那个值对象，现在有家了。）"
+    },
+    {
+      text: "「商品目录里的 Product：名称、图片、当前售价。」",
+      bucket: 1,
+      explain: "边界外。订单里存的是 Sku 加上下单那一刻的 unit_price——快照，不是指针。这也顺手解决了一个真实事故：商品明天涨价，你昨天的订单金额绝不能跟着变。如果订单持有 Product& 去读 current_price()，历史订单就会集体穿越。"
+    },
+    {
+      text: "「规则：订单总额不得超过客户的信用额度。」",
+      bucket: 0,
+      explain: "边界内——它就是画出这条边界的那个理由。注意它跨越多个订单行，不长在任何单个对象身上，所以必须由根（Order）来守，在 add_line 里对聚合整体检查。Evans：Define properties and invariants for the aggregate as a whole and give enforcement responsibility to the root。"
+    },
+    {
+      text: "「规则：订单一旦确认，对应商品的库存必须立刻扣减。」",
+      bucket: 1,
+      explain: "边界外——答案在这里翻转了，这是本课最容易错的一题。它读起来像不变量（有个「必须」，还有个「立刻」），但它其实是业务流程。库存是另一个聚合；硬要强一致，你就得在一个事务里锁住订单和库存，热门商品当场把系统锁死。现实电商的做法是最终一致：先确认订单，事后扣库存，扣不出来就道歉退款。Evans：Across boundaries, handle updates asynchronously。「怎么异步」就是下一课的领域事件。"
+    }
+  ]
+});
+
+renderQuiz(document.getElementById("quiz"), [
+  {
+    stem: "聚合的边界，应该由什么决定？",
+    options: [
+      "由数据库表的划分方式",
+      "由必须同时成立的规则",
+      "由界面一次展示的数量",
+      "由团队分工的边界划分"
+    ],
+    answer: 1,
+    explain: "边界由不变量决定——哪些东西必须「同时」正确，就把哪些圈在一起。问不出这样一条规则，就不该画这条线。选项 A 又是倒因为果（先有模型，后有存储）；D 是把限界上下文的判据错拿来用了：上下文的边界确实和团队有关，但聚合边界是纯粹的一致性问题。"
+  },
+  {
+    stem: "Evans 说，外部对象只被允许持有对聚合中什么的引用？",
+    options: [
+      "只能引用聚合的根实体",
+      "可以引用任意内部成员",
+      "只能引用聚合的值对象",
+      "可以引用根与其子实体"
+    ],
+    answer: 0,
+    explain: "原文：allow external objects to hold references to the root only。只有一道门，所有改动都从根走，根才有机会在每次改动时检查整个聚合的不变量。（Evans 留了个小口子：内部成员的引用可以传出去，但仅限于「单次操作内使用」，不能被外部存起来。）"
+  },
+  {
+    stem: "C++ 里给聚合根加一个非 const 的 `std::vector<OrderLine>& lines()`，后果是什么？",
+    options: [
+      "编译期会直接报错并拒绝",
+      "拷贝赋值与移动赋值删除",
+      "外部可绕过根破坏不变量",
+      "聚合的内存布局变得更大"
+    ],
+    answer: 2,
+    explain: "调用方直接 order.lines().push_back(...) 就绕过了 add_line，信用额度从此形同虚设。坑在于它极其安静——编译通过、运行正常、无告警（本课的验证代码用一条断言证明了总额能被搞到 9999.99 而无人吭声）。这就是 Evans 说的 blindsided by changes in other objects。选项 B 是第 4 课那个 const 成员陷阱的后果，别串台。"
+  },
+  {
+    stem: "订单需要知道它属于哪个客户。在聚合设计里，正确的做法是？",
+    options: [
+      "只保存对方的标识值",
+      "保存指向对方的指针",
+      "保存对方的完整副本",
+      "保存对方的弱指针值"
+    ],
+    answer: 0,
+    explain: "跨聚合只用 id 引用（Vernon, Effective Aggregate Design）。这让两个聚合能各自独立地加载、修改、加锁，也让边界在 C++ 的类型里看得见：按值持有 = 圈内，按 id 持有 = 圈外。附带红利：Order 不需要 include Customer 的头文件，没有生命周期纠缠，也没有悬垂指针。"
+  },
+  {
+    stem: "交错考察：你发现一个用例必须在同一个事务里修改两个聚合。第一反应该是什么？",
+    options: [
+      "改成一个事务一个聚合",
+      "把两个聚合合并成一个",
+      "给两个聚合加分布式锁",
+      "让应用层跳过聚合直改"
+    ],
+    answer: 0,
+    explain: "聚合边界就是事务边界：一个事务只改一个聚合，跨边界走最终一致性。这几乎总是对的——先怀疑「这条规则真的是不变量吗」，绝大多数「必须同时改」经不起追问（比如「下单即扣库存」）。选项 B 是新手最爱：合并确实能强一致，但换来的是大聚合、大锁、烂并发，正是 Evans 说的 pointlessly interfere。只有当业务方能证明那真是一条不变量时，B 才成立——而且那时你该重新审视整个模型，不是加个锁了事。"
+  }
+]);
+</script>
+</body>
+</html>
