@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DDD 战术模式的 C++ 写法 · 速查</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  .rule-table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; font-size: 0.92rem; }
+  .rule-table th, .rule-table td {
+    border: 1px solid var(--rule); padding: 0.5rem 0.7rem; text-align: left; vertical-align: top;
+  }
+  .rule-table th { background: var(--card-bg); font-family: -apple-system, "PingFang SC", sans-serif; font-size: 0.85rem; }
+  .rule-table code { font-size: 0.85em; }
+  .tbl-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<article>
+  <p class="kicker">Reference · 速查</p>
+  <h1>DDD 战术模式的 C++ 写法</h1>
+  <p class="lede">主流 DDD 资料的示例都是 Java／C#，这份表把模式翻译成现代 C++ 惯用法。
+  <strong>所有代码均在 clang 17 / <code>-std=c++20 -Wall -Wextra</code> 下编译通过并跑过断言。</strong>
+  定义对齐 <a href="DDD_Reference_2015-03.pdf">DDD Reference</a>。</p>
+
+  <h2>决策表：先回答这个问题</h2>
+  <p>「<strong>如果两个实例的所有属性都相同，它们是同一个东西吗？</strong>」——答案决定一切。
+  注意：这个问题<em>只在某个限界上下文内</em>有答案（钞票在钱包里是值对象，在央行追踪里是实体）。</p>
+
+  <div class="tbl-wrap">
+  <table class="rule-table">
+    <thead>
+      <tr><th style="width:22%">维度</th><th style="width:39%">值对象 Value Object</th><th style="width:39%">实体 Entity</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>身份来自</td><td>属性本身</td><td>标识（id），与属性无关</td></tr>
+      <tr><td>「同一个」意味着</td><td>属性全等 → 可互换</td><td>id 相等，纵使属性不同</td></tr>
+      <tr><td><code>operator==</code></td><td><code>= default</code>（逐成员比）</td><td><strong>手写，只比 id</strong>。绝不 default</td></tr>
+      <tr><td>可变性</td><td>不可变：无 setter，操作返回新对象</td><td>可变：属性随生命周期变化</td></tr>
+      <tr><td>不可变怎么实现</td><td>private 成员 + 只读接口。<strong>不要用 const 成员</strong></td><td>—</td></tr>
+      <tr><td>拷贝</td><td>随便拷，天然线程安全</td><td>谨慎；通常按引用/指针传递</td></tr>
+      <tr><td>生命周期</td><td>无。用完即弃</td><td>有。创建→变更→归档/销毁</td></tr>
+      <tr><td>成本</td><td>几乎为零</td><td>唯一性、并发、持久化都要管</td></tr>
+      <tr><td>默认选哪个</td><td><strong>默认选它</strong></td><td>只在真的需要追踪「这一个」时</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="card">
+    <p><strong>Evans 的两句原话，记住就够用：</strong></p>
+    <p style="margin:0.4rem 0"><em>"The model must define what it means to be the same thing."</em>
+    <span style="color:var(--ink-soft)">（模型必须定义「是同一个东西」是什么意思。）</span></p>
+    <p style="margin:0.4rem 0"><em>"When you care only about the attributes and logic of an element of the model,
+    classify it as a value object. […] Treat the value object as immutable."</em></p>
+  </div>
+
+  <h2>值对象：范式</h2>
+  <pre><code>class Money {
+ public:
+  Money(long long cents, std::string ccy)
+      : cents_(cents), currency_(std::move(ccy)) {}
+
+  // Identity IS the attributes → let the compiler compare them all.
+  bool operator==(const Money&amp;) const = default;
+
+  // Side-effect-free function: returns a new value, mutates nothing.
+  Money plus(const Money&amp; other) const {
+    if (currency_ != other.currency_)
+      throw std::invalid_argument{"currency mismatch"};
+    return Money{cents_ + other.cents_, currency_};
+  }
+
+  long long cents() const { return cents_; }
+
+ private:
+  long long   cents_;      // NOT const — see the trap below
+  std::string currency_;
+};</code></pre>
+  <ul>
+    <li><strong>没有 setter</strong>——这才是不可变的实现方式。</li>
+    <li><strong>所有操作 <code>const</code> 且返回新对象</strong>——Evans 的 side-effect-free functions。</li>
+    <li><strong>构造函数是校验的入口</strong>——非法的值对象根本造不出来（此处：币种不匹配直接抛）。</li>
+    <li><code>operator==</code> 用 <code>= default</code>（C++20）；需要排序时用 <code>auto operator&lt;=&gt;(const Money&amp;) const = default;</code>。</li>
+  </ul>
+
+  <h2>实体：范式</h2>
+  <pre><code>class Order {
+ public:
+  explicit Order(OrderId id) : id_(std::move(id)) {}
+
+  // Identity ONLY. Attributes deliberately ignored.
+  // NEVER `= default` here: it would compare lines_ too, and two
+  // different orders with the same items would collapse into one.
+  bool operator==(const Order&amp; other) const { return id_ == other.id_; }
+
+  void add_line(const Money&amp; amount) { lines_.push_back(amount); }
+
+ private:
+  OrderId            id_;
+  std::vector&lt;Money&gt; lines_;   // entities hold value objects
+};</code></pre>
+  <ul>
+    <li><strong>只比 id</strong>。用 <code>= default</code> 就是把实体写成了值对象——头号事故。</li>
+    <li>实体内部装满值对象是常态（<code>vector&lt;Money&gt;</code>），反过来极少。</li>
+    <li>Evans：<em>Keep the class definition simple and focused on life cycle continuity and identity.</em></li>
+  </ul>
+
+  <h2 style="color:var(--bad)">⚠ 陷阱：const 成员会废掉值语义</h2>
+  <p>C++ 程序员看到「immutable」的第一反应，往往是把成员标 <code>const</code>。这个坑很安静：
+  能编译、能构造、能比较，直到你要赋值或把它塞进会重新分配的容器。</p>
+  <pre><code>class BadMoney {
+  const long long   cents_;      // "immutable", right?
+  const std::string currency_;
+};
+BadMoney a{100, "CNY"}, b{200, "CNY"};
+a = b;   // 💥</code></pre>
+  <p>真实报错（clang 17）：</p>
+  <pre><code>error: object of type 'BadMoney' cannot be assigned because
+       its copy assignment operator is implicitly deleted
+note: copy assignment operator of 'BadMoney' is implicitly deleted
+      because field 'cents_' is of const-qualified type 'const long long'</code></pre>
+  <p>可用下面这组 <code>static_assert</code> 在自己的代码库里体检值对象：</p>
+  <pre><code>static_assert(std::is_copy_assignable_v&lt;Money&gt;);      // ✓
+static_assert(std::is_move_assignable_v&lt;Money&gt;);      // ✓
+static_assert(!std::is_copy_assignable_v&lt;BadMoney&gt;);  // const 成员的代价
+static_assert(!std::is_move_assignable_v&lt;BadMoney&gt;);</code></pre>
+  <p><strong>结论：不可变靠接口（无 setter），不靠 const 成员。</strong>值对象必须保持可赋值、可移动——
+  它的全部价值就在于能被自由拷来拷去。</p>
+
+  <h2>顺带治好的病：基本类型偏执</h2>
+  <p>值对象最实际的日常收益，是让编译器替你挡住语义事故：</p>
+  <div class="compare">
+    <figure>
+      <figcaption class="bad-label">✗ 什么都是内建类型</figcaption>
+      <pre><code>double  amount;    // 元？分？美元？
+double  weight;    // kg？磅？
+int64_t user;      // 谁的 id？
+
+// Compiles happily, ships a bug:
+transfer(weight, user);</code></pre>
+    </figure>
+    <figure>
+      <figcaption class="good-label">✓ 领域概念各有其类型</figcaption>
+      <pre><code>Money    amount;   // 币种带在身上
+Weight   weight;   // 单位带在身上
+UserId   user;     // 不会和 OrderId 混
+
+// Won't compile — the bug dies at build time.
+transfer(weight, user);</code></pre>
+    </figure>
+  </div>
+
+  <h2>常见判断速查</h2>
+  <div class="tbl-wrap">
+  <table class="rule-table">
+    <thead><tr><th style="width:30%">概念</th><th style="width:20%">通常是</th><th>但要注意</th></tr></thead>
+    <tbody>
+      <tr><td>金额 / 币种</td><td>值对象</td><td>几乎没有例外</td></tr>
+      <tr><td>地址</td><td>值对象</td><td>在「地址库／POI 上下文」里是实体（要纠错、合并重复点）</td></tr>
+      <tr><td>时间区间</td><td>值对象</td><td>组合值：起止合起来才有意义，规则（起&lt;止）有地方待了</td></tr>
+      <tr><td>重量 / 距离 / 温度</td><td>值对象</td><td>把单位编进类型，消灭基本类型偏执</td></tr>
+      <tr><td>订单 / 客户 / 包裹</td><td>实体</td><td>属性全等也仍是两个——搞混了要赔钱</td></tr>
+      <tr><td>钞票</td><td>看上下文</td><td>钱包里是值对象；央行防伪追踪里是实体（冠字号）</td></tr>
+      <tr><td>座位</td><td>看上下文</td><td>「3 排 5 座」这个具体座位是实体；「靠窗/过道」这个属性是值对象</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <footer class="lesson-footer">
+    <p>相关：<a href="ddd-map.html">DDD 全景地图</a> ·
+    <a href="../lessons/0004-entity-vs-value-object.html">第 4 课：实体 vs 值对象</a> ·
+    <a href="DDD_Reference_2015-03.pdf">DDD Reference</a>（第 12–13 页）</p>
+    <p>本页代码的验证方式：把范式代码连同 <code>static_assert</code> 与运行时断言编成一个 TU，
+    <code>c++ -std=c++20 -Wall -Wextra</code> 零告警通过、断言全绿。修改本页代码后请重跑。</p>
+  </footer>
+</article>
+</body>
+</html>

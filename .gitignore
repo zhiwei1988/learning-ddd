@@ -1,0 +1,12 @@
+# Compiled verification binaries — regenerate with code/README.md
+a.out
+*.o
+lesson4_check
+const_member_trap
+
+# Python venv used to extract text from the DDD Reference PDF
+venv/
+__pycache__/
+
+# macOS
+.DS_Store

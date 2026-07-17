@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 1 课 · 统一语言：让代码说业务的话</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<article>
+  <p class="kicker">第 1 课 · 战略设计 · 约 10 分钟</p>
+  <h1>统一语言：让代码说业务的话</h1>
+  <p class="lede">DDD 落地的第一步不是画架构图，而是造一门语言——一门业务方和你的代码都说的语言。</p>
+
+  <div class="card">
+    <p><strong>你在地图上的位置：</strong>DDD 分两个工具箱——战略设计（切分系统）和战术设计（写好每一块的代码）。
+    统一语言是战略工具箱的地基，其他一切都建在它上面。
+    随时打开 <a href="../reference/ddd-map.html">DDD 全景地图</a> 定位。</p>
+  </div>
+
+  <h2>问题：每个项目里都住着两门语言</h2>
+  <p>业务方说：「已支付但还没发货的订单，客户可以<strong>取消</strong>，钱<strong>退回去</strong>。」
+  代码却说：<code>if (r.st == 2 &amp;&amp; r.ship_flag == 0) r.st = 4;</code></p>
+  <p>这中间存在一个隐形的翻译过程：需求 → 开发者脑内翻译 → 技术实现。每一次翻译都有损耗，
+  而损耗会积累成 bug、误解和「这段代码到底在干嘛」。DDD 对此的判断很激进：
+  <strong>翻译本身就是错误的根源，所以要消灭翻译</strong>——让所有人、包括代码，说同一门语言。</p>
+
+  <blockquote>
+    A language structured around the domain model and used by all team members within a bounded
+    context to connect all the activities of the team with the software.
+    <span class="zh">（一门围绕领域模型构建的语言，团队所有成员在一个限界上下文内用它把团队的一切活动与软件连接起来。）</span>
+    <cite>— Eric Evans, <a href="https://www.domainlanguage.com/wp-content/uploads/2016/05/DDD_Reference_2015-03.pdf">DDD Reference</a>, "Ubiquitous Language"</cite>
+  </blockquote>
+
+  <p>关键词是 <em>ubiquitous</em>（无处不在）：这门语言不只活在需求文档里，
+  它必须出现在<strong>类名、方法名、变量名、测试名</strong>里。业务方在会议室说的那句话，
+  你应该能在代码里逐字找到。</p>
+
+  <h2>同一条业务规则，两种写法</h2>
+  <p>规则：「已支付且未发货的订单可以取消，取消后退款。」</p>
+
+  <div class="compare">
+    <figure>
+      <figcaption class="bad-label">✗ 技术语言 — 读代码的人必须自己反向翻译</figcaption>
+      <pre><code>// What does 2 mean? What does 4 mean?
+// The business rule is invisible here.
+void update_record(int id, int new_st) {
+  auto&amp; r = table[id];
+  if (r.st == 2 &amp;&amp; r.ship_flag == 0) {
+    r.st = 4;
+    do_refund(r.amt);
+  }
+}</code></pre>
+    </figure>
+    <figure>
+      <figcaption class="good-label">✓ 统一语言 — 会议室里那句话，原样出现在代码里</figcaption>
+      <pre><code>// "A paid, unshipped order can be
+//  cancelled; the payment is refunded."
+void Order::cancel() {
+  if (!is_paid() || has_shipped())
+    throw CancellationNotAllowed{id_};
+  status_ = Status::Cancelled;
+  issue_refund(paid_amount_);
+}</code></pre>
+    </figure>
+  </div>
+
+  <p>注意右边发生了什么：<code>cancel</code>、<code>paid</code>、<code>shipped</code>、<code>refund</code>
+  全是业务方的原话；魔法数字消失了；而且业务规则（什么情况下<em>不能</em>取消）从「散落在调用方的 if」
+  变成了 <code>Order</code> 自己守卫的规矩。命名对齐了，职责往往会跟着对齐——这是统一语言送你的第一份礼物。</p>
+
+  <h2>嗅探清单：你的代码在说哪门语言？</h2>
+  <p>拿到任何一段业务代码，闻这三个味道：</p>
+  <ul>
+    <li><strong>魔法值：</strong>状态用 <code>2</code>、<code>4</code>、<code>"P"</code> 表示——业务方在会议室里说不出「状态等于四」这种话。</li>
+    <li><strong>万能动词：</strong>满屏 <code>update</code> / <code>process</code> / <code>handle</code> / <code>manage</code>——业务动作（取消、退款、发货、作废）被压扁成了「改数据」。</li>
+    <li><strong>翻译对照表：</strong>需要一张 wiki 表格解释「代码里的 X 就是业务说的 Y」——对照表的存在本身就是语言分裂的自白。</li>
+  </ul>
+
+  <h2>试一试</h2>
+  <p>凭记忆作答，别回头翻——提取练习才能把知识钉进长期记忆。</p>
+  <div id="quiz"></div>
+
+  <h2>主推读物</h2>
+  <p>本课首选延伸阅读（5 分钟）：Martin Fowler 的
+  <a href="https://martinfowler.com/bliki/UbiquitousLanguage.html">Ubiquitous Language</a> 短文。
+  想看权威定义就查 Evans 官方免费的
+  <a href="https://www.domainlanguage.com/wp-content/uploads/2016/05/DDD_Reference_2015-03.pdf">DDD Reference</a>（本课引文出处）。
+  更多资源见工作区的 RESOURCES.md。</p>
+
+  <footer class="lesson-footer">
+    <p><strong>有不清楚的？</strong>直接在终端里问你的教师（我）。比如：「统一语言和数据库字段命名冲突怎么办？」
+    「业务方内部叫法都不统一怎么办？」——这类问题正是下一课的入口。</p>
+    <p><strong>下一课预告：</strong>限界上下文——为什么「整个公司共用一个大模型」注定失败，
+    以及「订单」这个词在销售和物流嘴里根本不是同一个东西。</p>
+  </footer>
+</article>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz(document.getElementById("quiz"), [
+  {
+    stem: "DDD 认为多数软件项目里最致命的复杂度来自哪里？",
+    options: [
+      "数据库与网络等基础设施层",
+      "业务领域本身的规则与概念",
+      "编程语言和框架的学习成本",
+      "团队成员彼此间的沟通成本"
+    ],
+    answer: 1,
+    explain: "Evans 那本书的副标题就是答案：Tackling Complexity in the Heart of Software——软件的心脏是领域。技术复杂度大多有成熟解法，真正淹死项目的是没被驯服的业务复杂度。"
+  },
+  {
+    stem: "「统一语言」的统一，指的是谁和谁之间的统一？",
+    options: [
+      "前端团队与后端团队",
+      "产品经理与测试团队",
+      "领域专家与开发团队",
+      "架构师与一线开发者"
+    ],
+    answer: 2,
+    explain: "统一语言跨越的是业务与技术之间那道最深的鸿沟：领域专家（懂业务的人）和开发团队共用一套词汇，并且这套词汇必须出现在代码里。"
+  },
+  {
+    stem: "业务方说「已支付且未发货的订单可以取消」。哪个接口最符合统一语言？",
+    options: [
+      "order.setStatus(4)",
+      "mgr.update(order, 4)",
+      "db.exec(updateSql)",
+      "order.cancel()"
+    ],
+    answer: 3,
+    explain: "cancel 是业务方嘴里的动词，另外三个都是技术操作。判断标准很简单：把这行代码念给业务方听，对方能不能听懂。「订单点取消」听得懂，「把状态设成四」听不懂。"
+  },
+  {
+    stem: "领域专家把某动作叫「作废」，代码里却一直叫 expireCheck()。最该做什么？",
+    options: [
+      "重命名代码以对齐业务用语",
+      "让业务方改口适应代码命名",
+      "维护一张双方叫法的对照表",
+      "两边各自保留避免大的返工"
+    ],
+    answer: 0,
+    explain: "语言分裂是模型分裂的早期信号。对照表恰恰是统一语言要消灭的「翻译层」；重命名是廉价的（IDE 一键），长期的理解错位才是昂贵的。注：若业务叫法本身更糟，也可以和专家协商改语言——但必须两边一起改，不能各说各话。"
+  }
+]);
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DDD 全景地图 · 速查</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  .map-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-top: 1.5rem; }
+  @media (min-width: 900px) { .map-grid { grid-template-columns: 1fr 1fr; } }
+  .map-grid dl { margin: 0.5rem 0 0; }
+  .map-grid dt { font-weight: 600; margin-top: 0.8rem; }
+  .map-grid dt .en { font-weight: 400; color: var(--ink-soft); font-size: 0.85em; }
+  .map-grid dd { margin: 0.15rem 0 0 0; color: var(--ink-soft); font-size: 0.93rem; }
+</style>
+</head>
+<body>
+<article>
+  <p class="kicker">Reference · 速查</p>
+  <h1>DDD 全景地图</h1>
+  <p class="lede">整个课程只有这一张地图。每课学的东西都能在这里找到位置。定义对齐 Eric Evans 官方的
+  <a href="DDD_Reference_2015-03.pdf">DDD Reference</a>（工作区内附 CC BY 4.0 副本，59 页，全部模式的权威定义）。</p>
+
+  <div class="card">
+    <p><strong>一句话总纲：</strong>DDD 的赌注是——复杂软件的成败取决于<em>领域模型</em>的质量，
+    而不是技术选型。它给你两个工具箱：<strong>战略设计</strong>决定「把系统切成几块、每块多重要」，
+    <strong>战术设计</strong>决定「每一块里面的代码长什么样」。先战略，后战术。</p>
+  </div>
+
+  <div class="map-grid">
+    <div class="card">
+      <h3>战略设计 <span class="en">Strategic Design</span></h3>
+      <p style="font-size:0.9rem; color:var(--ink-soft)">在系统与团队的尺度上工作。<br>
+      <strong>子域</strong>在问题空间（业务本来的样子，你发现它）；<br>
+      <strong>限界上下文</strong>在解空间（软件怎么切，你设计它）。</p>
+      <dl>
+        <dt>统一语言 <span class="en">Ubiquitous Language</span></dt>
+        <dd>团队与领域专家共用的一套精确词汇，直接出现在代码里。→ <a href="../lessons/0001-ubiquitous-language.html">第 1 课</a></dd>
+        <dt>限界上下文 <span class="en">Bounded Context</span></dt>
+        <dd>一个模型和它的语言保持一致适用的边界；边界外同一个词可以是另一个意思。→ <a href="../lessons/0002-bounded-context.html">第 2 课</a></dd>
+        <dt>子域 <span class="en">Subdomain：Core / Supporting / Generic</span></dt>
+        <dd>业务本身的分块（问题空间）。核心子域是你赢得竞争的地方，设计精力优先砸在这里；通用子域买、支撑子域简单做。→ <a href="../lessons/0003-subdomains.html">第 3 课</a></dd>
+        <dt>上下文映射 <span class="en">Context Mapping</span></dt>
+        <dd>刻画限界上下文之间的协作关系（合作、防腐层、跟随者……）。</dd>
+      </dl>
+    </div>
+    <div class="card">
+      <h3>战术设计 <span class="en">Tactical Design</span></h3>
+      <p style="font-size:0.9rem; color:var(--ink-soft)">在单个限界上下文内部工作。<br>
+      C++ 落地写法见 <a href="cpp-tactical-patterns.html">战术模式速查表</a>。</p>
+      <dl>
+        <dt>实体 <span class="en">Entity</span></dt>
+        <dd>由标识（而非属性值）定义的对象：同一张订单改了地址还是那张订单。→ <a href="../lessons/0004-entity-vs-value-object.html">第 4 课</a></dd>
+        <dt>值对象 <span class="en">Value Object</span></dt>
+        <dd>由属性值定义、无标识、不可变的对象：金额、地址、日期区间。→ <a href="../lessons/0004-entity-vs-value-object.html">第 4 课</a> · <a href="cpp-tactical-patterns.html">C++ 写法速查</a></dd>
+        <dt>聚合 <span class="en">Aggregate</span></dt>
+        <dd>一簇实体/值对象组成的一致性单元，只能通过聚合根访问和修改。</dd>
+        <dt>仓储 <span class="en">Repository</span></dt>
+        <dd>让聚合的存取看起来像操作一个内存集合，隔离持久化细节。</dd>
+        <dt>领域事件 <span class="en">Domain Event</span></dt>
+        <dd>领域中已经发生、业务方关心的事实：OrderCancelled。</dd>
+        <dt>领域服务 <span class="en">Domain Service</span></dt>
+        <dd>不自然属于任何实体/值对象的领域操作，无状态。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <footer class="lesson-footer">
+    <p>术语一旦在测验中被你证明掌握，就会收入工作区词汇表（GLOSSARY.md），此后所有课程沿用同一叫法。</p>
+  </footer>
+</article>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 3 课 · 子域：把设计精力花在刀刃上</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<article>
+  <p class="kicker">第 3 课 · 战略设计 · 约 14 分钟</p>
+  <h1>子域：把设计精力花在刀刃上</h1>
+  <p class="lede">你现在会画边界了。但每块地不一样贵——这一课教你判断该往哪块砸资源，以及哪些地方<em>根本不该用 DDD</em>。</p>
+
+  <div class="card">
+    <p><strong>你在地图上的位置：</strong>战略设计的第三站，也是最后一块拼图。
+    <a href="0001-ubiquitous-language.html">第 1 课</a>教你造语言，
+    <a href="0002-bounded-context.html">第 2 课</a>教你划边界，
+    这一课教你<em>分配资源</em>。随时打开 <a href="../reference/ddd-map.html">DDD 全景地图</a> 定位。</p>
+  </div>
+
+  <h2>先热身：回顾检查</h2>
+  <p>两道关于上一课的题，但这次不是背定义，是判断真实场景。凭记忆作答——这种「想不起来的难受」正是记忆固化的时刻，不是失败的信号。</p>
+  <div id="review"></div>
+
+  <h2>一个残酷的事实</h2>
+  <p>假设你已经把新项目切成了 8 个限界上下文，边界画得很漂亮。现在问题来了：<strong>你有 6 个人。</strong></p>
+  <p>DDD 是有成本的——建模会议、统一语言的维护、富领域模型的编写与重构，都在烧钱烧人。
+  如果你对 8 个上下文一视同仁地上全套 DDD，结果不是「架构优雅」，是项目延期。
+  Evans 对此没有粉饰：</p>
+
+  <blockquote>
+    It is harsh reality that not all parts of the design are going to be equally refined. Priorities must be set.
+    <span class="zh">（残酷的现实是：设计的各个部分不可能被同等精雕细琢。必须设定优先级。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Core Domain"（第 40 页）</cite>
+  </blockquote>
+
+  <p>紧接着他写了一句更扎心的——如果你打算往架构师方向走，这句话是面镜子：</p>
+
+  <blockquote>
+    But scarce, highly skilled developers tend to gravitate to technical infrastructure or
+    neatly definable domain problems that can be understood without specialized domain knowledge.
+    <span class="zh">（但稀缺的高水平开发者，往往会被技术基础设施、或那些无需专门领域知识就能理解的、界定清晰的问题所吸引。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Core Domain"</cite>
+  </blockquote>
+
+  <p>翻译成大白话：<strong>你最好的人，会自动飘向最好玩的技术活儿，而不是最值钱的业务活儿。</strong>
+  写个无锁队列、调个线程池、搭套框架——爽、可控、成就感即时到账。
+  而「搞懂生鲜损耗到底怎么算」既枯燥又要开一堆会。于是团队里最强的战力，
+  系统性地缺席了公司最值钱的那块地。这不是态度问题，是重力问题——所以需要架构决策去对抗它。</p>
+
+  <h2>子域：业务的分块（不是代码的分块）</h2>
+  <p>这里要先拆掉一个新手最容易撞上的混淆——<strong>子域不是限界上下文</strong>。它们分属两个空间：</p>
+
+  <div class="ctx-map cols-2">
+    <div class="ctx-box" style="border-style:solid">
+      <h4>问题空间 <span style="font-weight:400;color:var(--ink-soft)">Problem Space</span></h4>
+      <p class="ctx-sub">住着：<strong>子域</strong></p>
+      <ul>
+        <li>业务<em>本来</em>长什么样</li>
+        <li>你发现它，而不是设计它</li>
+        <li>老板不懂技术也能跟你讨论</li>
+        <li>问的是：<strong>我们在解决什么问题</strong></li>
+      </ul>
+    </div>
+    <div class="ctx-box">
+      <h4>解空间 <span style="font-weight:400;color:var(--ink-soft)">Solution Space</span></h4>
+      <p class="ctx-sub">住着：<strong>限界上下文</strong></p>
+      <ul>
+        <li>你<em>决定</em>把软件切成什么样</li>
+        <li>你设计它，是一个架构选择</li>
+        <li>对应真实的代码库与团队</li>
+        <li>问的是：<strong>我们打算怎么解</strong></li>
+      </ul>
+    </div>
+  </div>
+
+  <p>一个记忆锚点：<strong>子域是老天给的，限界上下文是你画的。</strong>
+  就算你一行代码都不写，「生鲜损耗预测」这个子域依然存在于业务里；
+  但「损耗预测上下文」只有你决定建它，它才存在。</p>
+
+  <div class="card">
+    <p><strong>那它们该一一对应吗？</strong>理想情况下是的——Vernon 建议让一个限界上下文对齐一个子域。
+    但这是<em>目标</em>，不是规则：现实里一个子域可能被拆进多个上下文，一个上下文也可能横跨多个子域。
+    后者尤其值得警惕——<strong>一个上下文横跨多个子域，通常是它该拆了的信号</strong>。
+    <br><span style="font-size:0.88rem;color:var(--ink-soft)">（这一点常被误传成「必须严格 1:1」。参见
+    <a href="https://vaadin.com/blog/ddd-part-1-strategic-domain-driven-design">Vaadin: Strategic Domain-Driven Design</a>：
+    "There is not necessarily a one-to-one mapping between bounded contexts and subdomains."）</span></p>
+  </div>
+
+  <h2>三类子域：三种完全不同的投资姿态</h2>
+  <p>Evans 原书里明确成模式的是<strong>核心子域</strong>与<strong>通用子域</strong>两个极端；
+  中间那档「支撑子域」由 Vaughn Vernon 在 <em>DDD Distilled</em> 里补齐，成了今天通行的三分法。</p>
+
+  <div class="ctx-map cols-3">
+    <div class="ctx-box">
+      <h4>核心子域 <span style="font-weight:400;color:var(--ink-soft)">Core</span></h4>
+      <p class="ctx-sub">你靠它赢</p>
+      <ul>
+        <li>复杂 <strong>且</strong> 是差异化来源</li>
+        <li>买不到——买得到就不是核心了</li>
+        <li><span class="ctx-word">上全套 DDD</span></li>
+        <li>派最强的人，且要「按此招聘」</li>
+      </ul>
+    </div>
+    <div class="ctx-box" style="border-style:solid; border-color:var(--rule)">
+      <h4>支撑子域 <span style="font-weight:400;color:var(--ink-soft)">Supporting</span></h4>
+      <p class="ctx-sub">你独有，但赢不了</p>
+      <ul>
+        <li>你家特有，市面无现成品</li>
+        <li>但客户不会因它选你</li>
+        <li><span class="ctx-word">够用就行</span>：CRUD／事务脚本</li>
+        <li>可以外包、可以交给新人练手</li>
+      </ul>
+    </div>
+    <div class="ctx-box" style="border-style:solid; border-color:var(--rule)">
+      <h4>通用子域 <span style="font-weight:400;color:var(--ink-soft)">Generic</span></h4>
+      <p class="ctx-sub">人人都一样</p>
+      <ul>
+        <li>鉴权、发票、短信、支付网关</li>
+        <li>已有成熟方案和公认模型</li>
+        <li><span class="ctx-word">买，别造</span></li>
+        <li>自研通常是纯亏</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>Evans 给通用子域的指令特别不留情面，注意最后半句的理由：</p>
+  <blockquote>
+    Identify cohesive subdomains that are not the motivation for your project. […]
+    give their continuing development lower priority than the core domain, and
+    <strong>avoid assigning your core developers to the tasks (because they will gain little domain knowledge from them)</strong>.
+    Also consider off-the-shelf solutions or published models for these generic subdomains.
+    <span class="zh">（识别出那些并非你项目立项动机的内聚子域……让它们的后续开发优先级低于核心域，
+    并且避免把核心开发者派去做这些任务——<strong>因为他们从中学不到什么领域知识</strong>。
+    另外，对这些通用子域，请考虑现成方案或已发表的公认模型。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Generic Subdomains"（第 41 页）</cite>
+  </blockquote>
+  <p>理由不是「他们太贵，别浪费」，而是<strong>「他们学不到领域知识」</strong>。
+  在 DDD 的价值观里，开发者脑子里的领域知识才是真资产。派核心开发去做发票模块，
+  亏的不是那几个人月，是那几个月他们本可以积累的业务理解。</p>
+
+  <h2>怎么判断？两个问题</h2>
+  <ol>
+    <li><strong>「客户会因为这块做得好而选我们吗？」</strong>——会 → 核心。不会 → 往下走。</li>
+    <li><strong>「市面上买得到吗？」</strong>——买得到 → 通用（去买）。买不到 → 支撑（简单做）。</li>
+  </ol>
+  <div class="card">
+    <p><strong>最要命的陷阱：子域类型是相对的，不是这块业务的固有属性。</strong>
+    「支付」对生鲜电商是通用子域（接第三方就完事），对一家支付网关公司就是核心子域（那是它全部的家当）。
+    所以「XX 是不是核心」这个问题，脱离了「你靠什么赚钱」根本无解。
+    <em>——这也是为什么第一课要死磕统一语言：你得先听得懂业务在说什么，才判断得了哪块是核心。</em></p>
+  </div>
+
+  <h2>投资姿态落到代码上长什么样</h2>
+  <p>这是本课最实用的一条：<strong>DDD 不是处处适用的，「到处都是聚合」是新手最贵的错误。</strong>
+  同一个系统里，两个子域的代码风格<em>应该</em>不一样：</p>
+
+  <div class="compare">
+    <figure>
+      <figcaption class="good-label">✓ 核心子域：砸资源，富领域模型</figcaption>
+      <pre><code>// Core: delivery routing — the reason
+// customers pick us. Rules live in the
+// model, in the dispatchers' language.
+namespace routing {
+
+class DeliveryPlan {
+ public:
+  // The model enforces the promise itself:
+  // a stop cannot be added if it would
+  // break an existing time window.
+  void add_stop(const Stop&amp;, TimeWindow);
+  bool can_promise(const Address&amp;,
+                   TimeWindow) const;
+  RouteRevision reroute(const TrafficUpdate&amp;);
+
+ private:
+  std::vector&lt;Stop&gt; stops_;
+  CourierId         courier_;
+};
+
+}  // namespace routing</code></pre>
+    </figure>
+    <figure>
+      <figcaption class="good-label">✓ 支撑子域：够用就行，别过度设计</figcaption>
+      <pre><code>// Supporting: supplier reconciliation.
+// Nobody buys from us because our
+// settlement screen is elegant.
+// A transaction script is the RIGHT
+// amount of design here — building an
+// aggregate would be waste, not rigour.
+namespace reconciliation {
+
+void mark_settled(SupplierId supplier,
+                  Period period) {
+  db.exec("UPDATE settlements "
+          "SET settled = 1 "
+          "WHERE supplier = ? AND period = ?",
+          supplier, period);
+}
+
+}  // namespace reconciliation</code></pre>
+    </figure>
+  </div>
+
+  <p>注意两边都标了 ✓。右边不是「技术债」，也不是「以后有空再重构成 DDD」——
+  <strong>它就是那块地的正确答案。</strong>能看出「这里不该用 DDD」，是比「会用 DDD」更高一级的判断力，
+  也正是架构师和「学过 DDD 的开发」之间的分水岭。</p>
+
+  <div class="card">
+    <p><strong>你现在获得的技能：给每块地定价。</strong>拿到一个新系统，先别问「怎么分层」。
+    先把业务能力列出来，逐个问那两个问题，标上核心／支撑／通用。
+    这张表决定了：谁去做、做多细、买还是造。<strong>它是一个架构决策，不是一个技术决策。</strong></p>
+  </div>
+
+  <h2>练一练：给子域定价</h2>
+  <p><strong>场景：</strong>一家生鲜电商，靠「2 小时达」赢得市场——它的实时路径规划和损耗控制做得比对手好。
+  下面每项是它的一块业务能力，判断类型。记住：<em>永远相对于「这家公司靠什么赢」来判断。</em></p>
+  <div id="sort"></div>
+
+  <h2>试一试</h2>
+  <p>凭记忆作答。最后一题会同时用到第 2 课和这一课——两课交错在一起考，才算真的分清了。</p>
+  <div id="quiz"></div>
+
+  <h2>主推读物</h2>
+  <p>本课首选延伸阅读（12 分钟）：<a href="https://vaadin.com/blog/ddd-part-1-strategic-domain-driven-design">DDD Part 1: Strategic Domain-Driven Design（Vaadin）</a>——
+  它把子域三分法和问题空间／解空间讲得很清楚，而且明确纠正了「子域与上下文必须 1:1」这个常见误传。
+  一手定义见工作区里的 <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，
+  第 40–41 页 "Core Domain" 与 "Generic Subdomains"，两页读完，本课引文都出自那里。
+  想系统补战略设计，Vernon 的 <em>DDD Distilled</em> 是最薄的那本（见 RESOURCES.md）。</p>
+
+  <footer class="lesson-footer">
+    <p><strong>有不清楚的？</strong>问我。这一课最容易卡的几个点：
+    「我们公司好像每块都是核心，怎么办？」（——通常意味着还没想清楚靠什么赢，这本身就是个发现）
+    「核心子域将来会变成通用子域吗？」（——会，而且这是常态，比如推荐算法）
+    「老板说全都很重要，怎么推动？」（——这是真实的组织问题，欢迎聊）</p>
+    <p><strong>战略设计到此收官。</strong>下一课起进入<strong>战术设计</strong>——也就是你会真正写代码的地方，
+    从<strong>实体 vs 值对象</strong>开始。这一块是 C++ 的主场：
+    Java/C# 程序员要费劲模拟的「值语义」「不可变」，在 C++ 里是母语，
+    所以这一课你大概率会比 Java 出身的同行学得更快。</p>
+  </footer>
+</article>
+
+<script src="../assets/categorize.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz(document.getElementById("review"), [
+  {
+    stem: "两个团队各自维护自己的包名，但共用同一张 orders 表和同一个 Order 类。这是几个限界上下文？",
+    options: [
+      "两个，包名已经分开了",
+      "一个，模型并没有分开",
+      "取决于两个团队的人数",
+      "无法判断需要更多信息"
+    ],
+    answer: 1,
+    explain: "Evans 要求边界体现在「团队组织、应用的特定部分、以及代码库与数据库 schema」上。共享同一个模型和同一张表，边界就只存在于文档里——这就是上一课说的「假 DDD：包名分了，模型没分」。"
+  },
+  {
+    stem: "销售管它叫「订单」，仓库管它叫「出库单」，指的是同一批货。这个信号说明什么？",
+    options: [
+      "两边应当统一叫法为订单",
+      "这里存在一条上下文边界",
+      "仓库的叫法属于历史遗留",
+      "两边必须共用同一个模型"
+    ],
+    answer: 1,
+    explain: "这是「异词同义」——用语言探测边界的两个信号之一（另一个是「同词异义」）。注意别掉进选项 A 的陷阱：强行统一叫法正是「全公司一个大模型」的老路。正确的做法是承认这里有两种语言，然后划一条边界。"
+  }
+], {
+  perfect: "上一课稳了，往下走。",
+  imperfect: "先回第 2 课扫一眼再往下——这一课要站在它上面。"
+});
+
+renderCategorize(document.getElementById("sort"), {
+  perfect: "你已经会给每块地定价了。",
+  imperfect: "看看答错那条的解释——判据永远是「靠什么赢」，不是「难不难」。",
+  buckets: ["核心子域", "支撑子域", "通用子域"],
+  items: [
+    {
+      text: "「实时配送路径规划引擎——2 小时达全靠它。」",
+      bucket: 0,
+      explain: "核心。判断依据不是「它技术难」，而是「客户因为它选我们」。它就写在公司的商业模式里，买也买不到——买得到的话，对手早就买了，2 小时达也就不是优势了。这里砸最强的人、上全套 DDD。"
+    },
+    {
+      text: "「用户注册登录、第三方账号绑定、找回密码。」",
+      bucket: 2,
+      explain: "通用。没有任何一个客户因为「你家登录做得好」而买菜。OIDC／OAuth 是公认模型，成熟方案遍地。自研的唯一产出是你自己的安全漏洞。买，别造。"
+    },
+    {
+      text: "「供应商结算对账——每家供应商的账期规则都不同。」",
+      bucket: 1,
+      explain: "支撑。它确实是你家特有的（市面上没有产品能完全匹配你的账期规则），所以买不到、得自己写；但客户永远看不见它，它赢不了竞争。结论：老老实实写个简单的实现，别在这儿建聚合。这一格最容易被误判成核心——「规则复杂」不等于「核心」。"
+    },
+    {
+      text: "「生鲜损耗预测与动态补货——损耗率比同行低 4 个点。」",
+      bucket: 0,
+      explain: "核心。「比同行低 4 个点」就是差异化的量化证据。注意它和路径规划是两个核心子域——核心子域不一定只有一个，但 Evans 反复强调「Make the core small」：如果你标出了六个核心，基本等于没标。"
+    },
+    {
+      text: "「发票开具与税务申报——按税务局的规则来。」",
+      bucket: 2,
+      explain: "通用。判据很利落：规则不是你定的，是税务局定的，全国每家公司都一样。这正是 Evans 说的「general principles everyone knows」。财税 SaaS 买一个，接上就行。"
+    },
+    {
+      text: "「运营后台的商品类目管理——加类目、改排序。」",
+      bucket: 1,
+      explain: "支撑。内部工具，你家的类目结构确实有点特殊（所以现成后台不完全够用），但它不产生任何竞争优势。CRUD 就是正确答案。可以外包，也适合给新人练手——反正从这儿学不到什么值钱的领域知识。"
+    }
+  ]
+});
+
+renderQuiz(document.getElementById("quiz"), [
+  {
+    stem: "判断一块业务是不是核心子域，最关键的问题是什么？",
+    options: [
+      "它的技术实现是否复杂",
+      "它现有的代码量是否大",
+      "它是否让我们赢得竞争",
+      "它是否被最多用户使用"
+    ],
+    answer: 2,
+    explain: "核心子域的判据是「差异化」，不是「难」。技术复杂度是最诱人的误判——供应商对账规则可以复杂得要命，但它依然只是支撑子域。反过来，核心子域必须同时满足复杂 + 差异化：如果它简单到人人都能做，它也不构成优势。"
+  },
+  {
+    stem: "「支付处理」对下列哪种公司最可能是核心子域？",
+    options: [
+      "一家生鲜电商的公司",
+      "一家在线教育的公司",
+      "一家招聘平台的公司",
+      "一家支付网关的公司"
+    ],
+    answer: 3,
+    explain: "子域类型是相对的，取决于「你靠什么赢」。对前三家，支付是通用子域——接第三方就完事；对支付网关公司，支付就是它全部的家当。所以脱离「这家公司怎么赚钱」去问「XX 是不是核心」，是个无解的问题。"
+  },
+  {
+    stem: "对于通用子域，Evans 给出的建议是什么？",
+    options: [
+      "优先考虑采购现成的方案",
+      "投入最强的开发者去攻坚",
+      "用最严格的建模方法实现",
+      "把它并入核心子域一起做"
+    ],
+    answer: 0,
+    explain: "原文：「Also consider off-the-shelf solutions or published models for these generic subdomains.」并且明确要求 avoid assigning your core developers to the tasks——理由是他们从中学不到领域知识。派最强的人去做通用子域，亏的不是人月，是他们本该积累的业务理解。"
+  },
+  {
+    stem: "交错考察：子域与限界上下文的关系，下列哪句是对的？",
+    options: [
+      "子域属解空间，上下文属问题空间",
+      "子域属问题空间，上下文属解空间",
+      "子域和上下文其实就是同一个概念",
+      "子域总是与上下文保持一一对应的"
+    ],
+    answer: 1,
+    explain: "子域是业务本来的样子（问题空间），你去发现它；限界上下文是你决定怎么切软件（解空间），你去设计它。选项 D 是最常见的误传：1:1 是理想目标（Vernon 建议如此），不是规则——现实中一个子域可能跨多个上下文；而一个上下文横跨多个子域，通常是该拆了的信号。"
+  }
+]);
+</script>
+</body>
+</html>

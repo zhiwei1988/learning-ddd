@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DDD 学习工作区</title>
+<link rel="stylesheet" href="assets/course.css">
+<style>
+  .hero-mission { font-size: 0.95rem; }
+  .hero-mission strong { color: var(--accent); }
+
+  .progress {
+    display: flex; gap: 4px; margin: 1.5rem 0 0.5rem;
+  }
+  .progress span {
+    height: 6px; flex: 1; border-radius: 3px; background: var(--rule);
+  }
+  .progress span.done { background: var(--accent); }
+  .progress-label {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 0.8rem; color: var(--ink-soft); margin: 0;
+  }
+
+  .track { margin: 0.5rem 0 0; }
+  .track-head {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 2rem 0 0.6rem; padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .row {
+    display: flex; align-items: baseline; gap: 0.75rem;
+    padding: 0.6rem 0.2rem; border-bottom: 1px solid var(--rule);
+  }
+  .row:last-child { border-bottom: none; }
+  .row .num {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 0.8rem; color: var(--ink-soft); min-width: 2.2rem;
+  }
+  .row .body { flex: 1; min-width: 0; }
+  .row .body a { font-weight: 600; }
+  .row .sub {
+    display: block; font-size: 0.85rem; color: var(--ink-soft); margin-top: 0.15rem;
+  }
+  .pill {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 0.72rem; padding: 0.12rem 0.5rem; border-radius: 999px;
+    white-space: nowrap; border: 1px solid var(--rule); color: var(--ink-soft);
+  }
+  .pill.ok { background: var(--good-bg); border-color: var(--good); color: var(--good); }
+  .pill.next { background: var(--card-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  .row.pending .body a, .row.pending .num { color: var(--ink-soft); }
+  .row.pending { opacity: 0.75; }
+
+  /* Only the command block goes block-level — inline <code> in the prose below
+     must stay inline, so scope this by class, not by element. */
+  .resume .cmd {
+    display: block; padding: 0.7rem 1rem; margin: 0.5rem 0 0;
+    background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px;
+    font-size: 0.85rem; line-height: 1.9;
+  }
+</style>
+</head>
+<body>
+<article>
+  <p class="kicker">学习工作区</p>
+  <h1>领域驱动设计</h1>
+  <p class="lede hero-mission">目标：在新项目里把 DDD 真正落地，并借此补齐架构方法论。
+  技术栈 <strong>现代 C++</strong>，示例全部编译验证过。</p>
+
+  <div class="progress">
+    <span class="done"></span><span class="done"></span><span class="done"></span>
+    <span class="done"></span><span></span><span></span>
+  </div>
+  <p class="progress-label">战略设计已收官（1–3 课，全部满分） · 战术设计进行中 · 下一课：<strong>聚合</strong></p>
+
+  <div class="card">
+    <p style="margin:0"><strong>不知道从哪开始？</strong>先打开 <a href="reference/ddd-map.html">DDD 全景地图</a> ——
+    整个课程只有这一张图，每课学的东西都能在上面找到位置。然后从上次停下的地方继续。</p>
+  </div>
+
+  <p class="track-head">战略设计 · 系统与团队的尺度</p>
+  <div class="track">
+    <div class="row">
+      <span class="num">01</span>
+      <span class="body">
+        <a href="lessons/0001-ubiquitous-language.html">统一语言</a>
+        <span class="sub">让代码说业务的话。消灭「需求 → 脑内翻译 → 实现」这个损耗层。</span>
+      </span>
+      <span class="pill ok">4/4</span>
+    </div>
+    <div class="row">
+      <span class="num">02</span>
+      <span class="body">
+        <a href="lessons/0002-bounded-context.html">限界上下文</a>
+        <span class="sub">一个词，两个意思。为什么「全公司一个大模型」注定失败。</span>
+      </span>
+      <span class="pill ok">✓</span>
+    </div>
+    <div class="row">
+      <span class="num">03</span>
+      <span class="body">
+        <a href="lessons/0003-subdomains.html">子域：核心 / 支撑 / 通用</a>
+        <span class="sub">把设计精力花在刀刃上——以及哪些地方<em>根本不该用 DDD</em>。</span>
+      </span>
+      <span class="pill ok">全对</span>
+    </div>
+  </div>
+
+  <p class="track-head">战术设计 · 单个限界上下文内部</p>
+  <div class="track">
+    <div class="row">
+      <span class="num">04</span>
+      <span class="body">
+        <a href="lessons/0004-entity-vs-value-object.html">实体 vs 值对象</a>
+        <span class="sub">什么叫「同一个东西」。C++ 值语义的主场——你早就在写值对象了。</span>
+      </span>
+      <span class="pill next">待反馈</span>
+    </div>
+    <div class="row pending">
+      <span class="num">05</span>
+      <span class="body">
+        聚合与一致性边界
+        <span class="sub">战术设计最难也最值钱的一块：一次改动该覆盖多大范围才算「一致」？</span>
+      </span>
+      <span class="pill">未开始</span>
+    </div>
+    <div class="row pending">
+      <span class="num">06</span>
+      <span class="body">
+        仓储、领域事件、分层架构
+        <span class="sub">让聚合能存能取，让「已发生的事实」成为一等公民。</span>
+      </span>
+      <span class="pill">未开始</span>
+    </div>
+  </div>
+  <p style="font-size:0.85rem;color:var(--ink-soft);margin-top:0.75rem">
+  之后：上下文映射、防腐层、事件风暴、设计评审实战。路线会随学习进展滚动调整。</p>
+
+  <p class="track-head">速查 · 会反复回来看的东西</p>
+  <div class="track">
+    <div class="row">
+      <span class="num">▤</span>
+      <span class="body">
+        <a href="reference/ddd-map.html">DDD 全景地图</a>
+        <span class="sub">战略 / 战术两个工具箱的全貌。每课的定位锚点。</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">▤</span>
+      <span class="body">
+        <a href="reference/cpp-tactical-patterns.html">战术模式的 C++ 写法</a>
+        <span class="sub">决策表、值对象/实体范式、const 成员陷阱、常见概念判断表。含可直接拷用的 static_assert。</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">▤</span>
+      <span class="body">
+        <a href="reference/DDD_Reference_2015-03.pdf">Eric Evans《DDD Reference》</a>
+        <span class="sub">官方免费 PDF（59 页，CC BY 4.0）。全部模式的权威定义——查定义先查它，别凭记忆。</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">▤</span>
+      <span class="body">
+        <a href="GLOSSARY.md">词汇表</a>
+        <span class="sub">已证明掌握的术语才收录。目前 6 条，全部来自战略设计。</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">▤</span>
+      <span class="body">
+        <a href="RESOURCES.md">资源库</a>
+        <span class="sub">经核实的书单与两个活跃社区（Virtual DDD、DDD-CQRS-ES Discord）。</span>
+      </span>
+    </div>
+  </div>
+
+  <p class="track-head">恢复进度</p>
+  <div class="card resume">
+    <p style="margin-top:0.25rem">课程状态全部在磁盘上，不在会话里。换新会话只需：</p>
+    <code class="cmd">cd ~/learning/ddd<br>claude<br>/teach</code>
+    <p style="font-size:0.88rem;color:var(--ink-soft);margin-bottom:0.25rem">
+    <code>/teach</code> 会读 <code>MISSION.md</code>（为什么学）、<code>learning-records/</code>（已证明掌握了什么）、
+    <code>NOTES.md</code>（路线图与教学策略）、<code>GLOSSARY.md</code>（术语），重建全部上下文并接着上课。
+    <strong>你不需要复述任何东西。</strong></p>
+  </div>
+
+  <footer class="lesson-footer">
+    <p><strong>有问题随时问</strong>——教师就在终端里，不用等到下一课。
+    课程里埋了几个高频疑问还没展开：「限界上下文 = 微服务吗？」「两个上下文都要 Customer，字段抄两遍？」
+    「我们公司好像每块都是核心子域怎么办？」——任何一个感兴趣都可以提前拉一课出来。</p>
+    <p style="font-size:0.82rem">代码验证：<code>code/README.md</code> ·
+    所有 C++ 示例已在 clang 17 / <code>-std=c++20 -Wall -Wextra</code> 下编译并跑过断言。</p>
+  </footer>
+</article>
+</body>
+</html>

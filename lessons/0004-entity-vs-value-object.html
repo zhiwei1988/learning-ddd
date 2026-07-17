@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 4 课 · 实体 vs 值对象：什么叫「同一个东西」</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<article>
+  <p class="kicker">第 4 课 · 战术设计 · 约 14 分钟</p>
+  <h1>实体 vs 值对象：什么叫「同一个东西」</h1>
+  <p class="lede">战术设计第一课。好消息：这块是 C++ 的主场——你其实早就在写值对象了，只是不知道它叫这个名字。</p>
+
+  <div class="card">
+    <p><strong>你在地图上的位置：</strong>战略设计（<a href="0001-ubiquitous-language.html">语言</a>／<a href="0002-bounded-context.html">边界</a>／<a href="0003-subdomains.html">定价</a>）已收官。
+    从这一课起，你站在<em>一个限界上下文内部</em>，开始写代码。
+    随时打开 <a href="../reference/ddd-map.html">DDD 全景地图</a> 定位。</p>
+  </div>
+
+  <h2>先热身：回顾检查</h2>
+  <p>两道回扣第 3 课的判断题。凭记忆作答。</p>
+  <div id="review"></div>
+
+  <h2>一个问题，分出两类对象</h2>
+  <p>Evans 把这件事压缩成了一句话，我认为它是整个战术设计里最重要的一句：</p>
+
+  <blockquote>
+    The model must define what it means to be the same thing.
+    <span class="zh">（模型必须定义：「是同一个东西」到底是什么意思。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Entities"（第 12 页）</cite>
+  </blockquote>
+
+  <p>这不是哲学，是每天都要做的决定。拿一个概念，问自己<strong>一个问题</strong>：</p>
+
+  <div class="card">
+    <p style="font-size:1.05rem"><strong>「如果两个实例的所有属性都相同，它们是同一个东西吗？」</strong></p>
+    <ul>
+      <li><strong>是</strong> → <strong>值对象</strong>。两张 100 元，金额币种都一样，那就是一回事，可以互换。</li>
+      <li><strong>否</strong> → <strong>实体</strong>。两个客户都叫张伟、都住同一小区，他们仍然是两个人。搞混了要出人命。</li>
+    </ul>
+  </div>
+
+  <p>反过来还有一个同样重要的检验，专门用来识别实体：<strong>「它的属性全变了，它还是它吗？」</strong>
+  一张订单改了地址、加了商品、改了金额——它还是那张订单。这就是 Evans 说的
+  <em>a thread of continuity and identity, going through a lifecycle, though their attributes may change</em>
+  （一条贯穿时间的连续性与标识之线，纵使属性会变）。</p>
+
+  <h2>钞票：同一个概念，两个答案</h2>
+  <p>「一张 100 元人民币」是实体还是值对象？</p>
+  <p><strong>这个问题没有脱离上下文的答案</strong>——这正是第 2 课的回旋镖：</p>
+
+  <div class="ctx-map cols-2">
+    <div class="ctx-box">
+      <h4>你的钱包上下文</h4>
+      <p class="ctx-sub">关心的是：我有多少钱</p>
+      <ul>
+        <li>钞票 = <span class="ctx-word">值对象</span></li>
+        <li>两张 100 元完全可以互换</li>
+        <li>没人在乎冠字号是多少</li>
+        <li>「同一个东西」= 金额与币种相同</li>
+      </ul>
+    </div>
+    <div class="ctx-box">
+      <h4>央行防伪追踪上下文</h4>
+      <p class="ctx-sub">关心的是：这张纸去过哪</p>
+      <ul>
+        <li>钞票 = <span class="ctx-word">实体</span></li>
+        <li>冠字号 AB12345678 独一无二</li>
+        <li>被追踪一生：印刷→流通→销毁</li>
+        <li>「同一个东西」= 冠字号相同</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>所以「X 是实体还是值对象」这个问题，和第 3 课的「X 是不是核心子域」一样，
+  <strong>脱离上下文无解</strong>。你得先问：<em>在这个上下文里，我们凭什么说两个东西是同一个？</em></p>
+
+  <h2>为什么 Evans 让你默认选值对象</h2>
+  <p>新手的本能是「万物皆实体，都给个 id」。Evans 明确反对，理由很实在：</p>
+
+  <blockquote>
+    Tracking the identity of entities is essential, but attaching identity to other objects can
+    hurt system performance, add analytical work, and muddle the model by making all objects look the same.
+    <span class="zh">（追踪实体的标识是必要的，但给其他对象附加标识，会损害系统性能、增加分析负担，
+    并且让所有对象看起来都一个样，从而把模型搞浑浊。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Value Objects"（第 13 页）</cite>
+  </blockquote>
+
+  <p><strong>标识是有成本的。</strong>一旦一个东西有了 id，你就得管它的生命周期、管它的唯一性、
+  管它在数据库里的行、管并发修改时谁赢。而值对象没有这些负担——它可以随便拷贝、随便丢弃、
+  天然线程安全，因为它不可变。所以 Evans 的指令是：</p>
+
+  <blockquote>
+    Therefore: When you care only about the attributes and logic of an element of the model, classify it as a value object. […]
+    <strong>Treat the value object as immutable.</strong> Make all operations Side-effect-free Functions that don't depend on any mutable state.
+    Don't give a value object any identity […]
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Value Objects"</cite>
+  </blockquote>
+
+  <h2>你的主场：C++ 值语义</h2>
+  <p>这里有个对你的红利。Java／C# 程序员学值对象很痛苦——他们的世界里一切皆引用，
+  「不可变」「按值相等」全得靠纪律和样板代码去模拟（写 <code>equals</code>、<code>hashCode</code>、
+  到处 <code>final</code>、还得防着别人拿到引用改内部状态）。</p>
+  <p><strong>而 C++ 的值语义就是母语。</strong>你写了这么多年 <code>struct Point</code>、
+  <code>operator==</code>、<code>const</code> 引用传参——那就是值对象，只是没人告诉你它有个 DDD 名字。
+  这一课对你来说不是学新东西，是给已有的肌肉记忆挂上正确的标签，然后知道<em>什么时候不该这么写</em>。</p>
+
+  <div class="compare">
+    <figure>
+      <figcaption class="good-label">✓ 值对象：按值相等，不可变</figcaption>
+      <pre><code>class Money {
+ public:
+  Money(long long cents, std::string ccy)
+      : cents_(cents), currency_(std::move(ccy)) {}
+
+  // C++20: compares every member for you.
+  // THIS is what "identity by attributes" means.
+  bool operator==(const Money&amp;) const = default;
+
+  // Side-effect-free: returns a NEW value,
+  // mutates nothing. No setters anywhere.
+  Money plus(const Money&amp; other) const {
+    if (currency_ != other.currency_)
+      throw std::invalid_argument{"currency mismatch"};
+    return Money{cents_ + other.cents_, currency_};
+  }
+
+  long long cents() const { return cents_; }
+
+ private:
+  long long   cents_;
+  std::string currency_;
+};
+
+// Money{100,"CNY"} == Money{100,"CNY"}  → true
+// Interchangeable. Copy it freely.</code></pre>
+    </figure>
+    <figure>
+      <figcaption class="good-label">✓ 实体：按标识相等，属性可变</figcaption>
+      <pre><code>class Order {
+ public:
+  explicit Order(OrderId id) : id_(std::move(id)) {}
+
+  // Identity ONLY. Attributes are deliberately
+  // ignored — that is the entire point.
+  // Never `= default` this: it would compare
+  // lines_ too, and two different orders with
+  // the same items would collapse into one.
+  bool operator==(const Order&amp; other) const {
+    return id_ == other.id_;
+  }
+
+  // Attributes change; the order stays itself.
+  void add_line(const Money&amp; amount) {
+    lines_.push_back(amount);
+  }
+
+ private:
+  OrderId            id_;
+  std::vector&lt;Money&gt; lines_;
+};
+
+// Two orders, same items, different ids
+//   → NOT equal. Different things.</code></pre>
+    </figure>
+  </div>
+
+  <p>注意右边那条注释：<strong><code>Order</code> 绝不能用 <code>= default</code> 生成 <code>operator==</code></strong>。
+  一旦 default，它会连 <code>lines_</code> 一起比——两张内容相同的不同订单就会被判定为同一张。
+  这是把「实体」写成了「值对象」，是本课要防的头号事故。
+  左边恰恰相反：<code>Money</code> 就该 default，因为它的身份<em>就是</em>它的属性。
+  同一个 C++ 特性，两边的正确答案相反——分野不在语法，在你对「什么叫同一个东西」的回答。</p>
+
+  <h2>C++ 专属陷阱：别用 const 成员来实现「不可变」</h2>
+  <p>Evans 说值对象要 immutable。C++ 程序员的第一反应往往是把成员标成 <code>const</code>。
+  <strong>这是个坑，而且是个安静的坑</strong>——类照样能编译、能构造、能比较，直到某天你想赋值或把它塞进
+  <code>std::vector</code> 里排序：</p>
+
+  <pre><code>class BadMoney {
+  const long long   cents_;      // "immutable", right?
+  const std::string currency_;
+};
+
+BadMoney a{100, "CNY"}, b{200, "CNY"};
+a = b;   // <span style="color:var(--bad)">💥</span></code></pre>
+
+  <p>真实的编译器报错（clang 17，<code>-std=c++20</code>）：</p>
+  <pre><code>error: object of type 'BadMoney' cannot be assigned because
+       its copy assignment operator is implicitly deleted
+   16 |   a = b;
+      |     ^
+note: copy assignment operator of 'BadMoney' is implicitly deleted
+      because field 'cents_' is of const-qualified type 'const long long'
+    9 |   const long long   cents_;
+      |                     ^</code></pre>
+
+  <p>const 数据成员会让拷贝赋值和移动赋值被隐式删除，于是你的值对象没法排序、没法放进会重新分配的容器、
+  没法被赋值——而值对象的全部价值恰恰在于<em>能被自由地拷来拷去</em>。你为了「不可变」，
+  亲手废掉了值语义。</p>
+
+  <div class="card">
+    <p><strong>正解：不可变靠接口，不靠 const 成员。</strong>成员是普通的 private 数据；
+    不提供任何 setter；所有操作都是 <code>const</code> 成员函数并返回新对象。
+    这样它既是不可变的（外部无法改），又保有完整的值语义（可赋值、可移动、可排序）。
+    <br><span style="font-size:0.88rem;color:var(--ink-soft)">左边 <code>Money</code> 那段正是这么写的——
+    本课所有 C++ 代码都在 clang 17 / C++20 下编译并跑过断言，包括这个陷阱的 8 条 static_assert。</span></p>
+  </div>
+
+  <div class="card" style="border-color:var(--accent)">
+    <p><strong>📌 这一课的东西已经压缩成速查表了：<a href="../reference/cpp-tactical-patterns.html">DDD 战术模式的 C++ 写法</a></strong>
+    ——决策表、两个范式、const 陷阱、以及一份「常见概念该判成什么」的对照表（金额／地址／时间窗／钞票／座位）。
+    课以后不会再看，但这张表你会反复查。里面还有一组 <code>static_assert</code>，可以直接拷进你自己的代码库给值对象做体检。</p>
+  </div>
+
+  <h2>练一练：这是实体还是值对象？</h2>
+  <p><strong>场景：</strong>还是那家生鲜电商，你现在站在<strong>「履约上下文」</strong>里面（送货那摊事）。
+  注意最后两项——它们考的是「换个上下文，答案会不会变」。</p>
+  <div id="sort"></div>
+
+  <h2>试一试</h2>
+  <div id="quiz"></div>
+
+  <h2>主推读物</h2>
+  <p>本课首选延伸阅读（6 分钟）：Martin Fowler 的
+  <a href="https://martinfowler.com/bliki/ValueObject.html">ValueObject</a>——
+  他对「按值相等」和不可变性的论证最简洁，而且专门讨论了值对象在不同语言里的落差
+  （C++ 恰好是他说的「有值语义」那一侧）。
+  一手定义见工作区里的 <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>
+  第 12–13 页 "Entities" 与 "Value Objects"，本课引文都出自那两页。</p>
+
+  <footer class="lesson-footer">
+    <p><strong>做完把分数告诉我</strong>——三个区各自的得分都要，我按结果决定下一课的难度。</p>
+    <p><strong>有不清楚的？</strong>问我。这一课常见的卡点：
+    「实体的 id 该用什么类型？自增 int / UUID / 业务编号？」（——这是个有真实权衡的问题，值得单聊）
+    「值对象要不要存数据库？怎么存？」（——引出后面的仓储）
+    「C++ 里实体该不该禁用拷贝？」（——好问题，答案和聚合有关）</p>
+    <p><strong>下一课预告：聚合（Aggregate）</strong>——DDD 战术设计里最难、也最值钱的一块。
+    你现在有了实体和值对象，但真实系统的问题是：<em>一次改动到底该覆盖多大范围才算「一致」？</em>
+    订单和库存要不要一起改？这一课会用上你刚学的「不该处处用 DDD」当护栏。</p>
+  </footer>
+</article>
+
+<script src="../assets/categorize.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz(document.getElementById("review"), [
+  {
+    stem: "团队说：「我们的订单履约流程规则特别复杂，肯定是核心子域。」这个推理错在哪？",
+    options: [
+      "复杂度不等于差异化",
+      "履约永远属于支撑域",
+      "核心子域只能有一个",
+      "规则复杂应当先简化"
+    ],
+    answer: 0,
+    explain: "核心子域的判据是「客户会因为它选我们吗」，不是「它难不难」。供应商对账规则可以复杂得要命，依然只是支撑子域。反过来说也成立：如果这家公司的履约（2 小时达）正是它赢的原因，那它就是核心——但理由必须是差异化，不能是复杂度。"
+  },
+  {
+    stem: "子域与限界上下文，哪个是你「发现」的，哪个是你「设计」的？",
+    options: [
+      "都是设计出来的产物",
+      "子域发现，上下文设计",
+      "都是客观发现的产物",
+      "子域设计，上下文发现"
+    ],
+    answer: 1,
+    explain: "子域在问题空间——业务本来就长那样，你一行代码不写它也存在，所以你去发现它。限界上下文在解空间——它是你的架构选择，你不建它它就不存在。这个区分是后面所有战术设计的地基：你只在自己画的上下文里面写代码。"
+  }
+], {
+  perfect: "战略设计稳了，进战术设计。",
+  imperfect: "先回第 3 课扫一眼——战术设计要站在它上面。"
+});
+
+renderCategorize(document.getElementById("sort"), {
+  perfect: "你已经会问「什么叫同一个东西」了。",
+  imperfect: "看看答错那条——判据永远是「属性全相同的两个，是不是一回事」。",
+  buckets: ["实体", "值对象"],
+  items: [
+    {
+      text: "「收货地址：广州市天河区 xx 路 5 号 301。」",
+      bucket: 1,
+      explain: "值对象。两个字段完全相同的地址，在履约上下文里就是同一个地方——没有任何理由区分它们。而且它天然不可变：客户改地址是「换一个新地址」，不是「把这个地址对象改掉」。这是最经典的值对象。"
+    },
+    {
+      text: "「包裹：正在送往上述地址的那个箱子。」",
+      bucket: 0,
+      explain: "实体。两个箱子就算重量、地址、商品全都一样，也依然是两个箱子——发错了要赔钱。而且它有生命周期：揽收→运输→签收，属性一路在变，但它始终是那个箱子。这就是 Evans 说的 a thread of continuity。"
+    },
+    {
+      text: "「包裹重量：2.5 kg。」",
+      bucket: 1,
+      explain: "值对象。2.5 kg 就是 2.5 kg，没有「这个 2.5 kg」和「那个 2.5 kg」之分。顺带一提：写成 Weight 类型而不是 double，能让编译器帮你挡住「把公斤加到公里上」这类事故——这叫消除基本类型偏执（primitive obsession）。"
+    },
+    {
+      text: "「骑手：工号 R-8823 的那位。」",
+      bucket: 0,
+      explain: "实体。两个骑手可以同名同龄同车型，但他们是两个人——派单派错了是真实事故。工号就是那条标识之线，他换车、换手机号、改名字，他还是他。"
+    },
+    {
+      text: "「配送时间窗：14:00–16:00。」",
+      bucket: 1,
+      explain: "值对象。两个 14:00–16:00 完全可以互换。注意它是个「组合值」——起止两个时间合起来才有意义，还带着自己的规则（起必须早于止）。把它做成一个类型而不是两个裸时间戳，规则就有地方待了。"
+    },
+    {
+      text: "「同样是『地址』，但你在的是『地址库上下文』——负责维护全国 POI，纠错、合并重复点。」",
+      bucket: 0,
+      explain: "实体——注意答案翻转了。在地址库上下文里，每个 POI 有自己的 id、有生命周期（新建→纠错→与重复点合并→废弃），你要追踪的正是「这个点」本身。同一个「地址」概念，在履约上下文是值对象，在地址库上下文是实体。这就是第 2 课的回旋镖：脱离上下文，这个问题无解。"
+    }
+  ]
+});
+
+renderQuiz(document.getElementById("quiz"), [
+  {
+    stem: "判断一个概念是实体还是值对象，该问的问题是什么？",
+    options: [
+      "它在数据库里是否有独立的表",
+      "它的属性数量是否超过了三个",
+      "属性全相同的两个是否算一回事",
+      "它是否需要被前端界面展示出来"
+    ],
+    answer: 2,
+    explain: "Evans：The model must define what it means to be the same thing。答「是一回事」→ 值对象（按属性相等）；答「仍是两个」→ 实体（按标识相等）。注意选项 A 是典型的倒因为果：先有模型判断，才有存储设计，不是反过来让数据库表决定你的领域模型。"
+  },
+  {
+    stem: "Evans 建议默认优先选值对象，主要理由是什么？",
+    options: [
+      "值对象的运行性能总是更高",
+      "标识是有成本的，会浑浊模型",
+      "值对象更容易映射到数据库",
+      "实体的写法在多数语言里更繁琐"
+    ],
+    answer: 1,
+    explain: "原文：attaching identity to other objects can hurt system performance, add analytical work, and muddle the model by making all objects look the same。给万物加 id，你就得管生命周期、唯一性、并发——而且所有对象长得一个样，模型丢掉了表达力。「万物皆实体」是战术设计里最常见的新手病。"
+  },
+  {
+    stem: "在 C++ 里，用 const 数据成员来实现值对象的不可变，会导致什么？",
+    options: [
+      "编译期报错，无法完成构造",
+      "对象体积变大，性能会下降",
+      "拷贝赋值与移动赋值被删除",
+      "operator== 无法被正确默认化"
+    ],
+    answer: 2,
+    explain: "const 成员会让拷贝赋值/移动赋值被隐式删除（本课贴了真实的 clang 报错）。坑在于它很安静：构造、比较都正常，直到你要赋值或把它放进会重新分配的容器。结果是你为了「不可变」废掉了值语义——而值对象的价值恰恰在于能自由拷贝。正解：不可变靠「没有 setter + 操作返回新对象」，不靠 const 成员。"
+  },
+  {
+    stem: "为什么 Order 这样的实体不能用 `bool operator==(const Order&) const = default;`？",
+    options: [
+      "默认化会连属性一起比较",
+      "实体类不允许定义比较运算",
+      "默认化要求所有成员都可比",
+      "会导致编译期的无限递归"
+    ],
+    answer: 0,
+    explain: "= default 会逐成员比较，于是两张 id 不同但内容相同的订单会被判为相等——这就把实体退化成了值对象，是本课的头号事故。实体的 operator== 必须只比 id。同一个 C++ 特性，Money 该用它、Order 不该用它：分野不在语法，在「什么叫同一个东西」。（选项 C 描述的限制虽然真实存在，但不是这里的理由。）"
+  },
+  {
+    stem: "交错考察：「一张 100 元钞票」是实体还是值对象？",
+    options: [
+      "值对象，钞票之间可以互换",
+      "实体，因为它有唯一的冠字号",
+      "取决于所在的限界上下文",
+      "实体，因为它有物理的实体"
+    ],
+    answer: 2,
+    explain: "在钱包上下文里是值对象（哪张 100 都一样）；在央行防伪追踪上下文里是实体（冠字号 AB12345678 被追踪一生）。和第 3 课的「X 是不是核心子域」一模一样：脱离上下文的问法本身就是错的。这是第 2 课的回旋镖——限界上下文不只决定语言，也决定同一个概念的建模方式。"
+  }
+]);
+</script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 2 课 · 限界上下文：一个词，两个意思</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<article>
+  <p class="kicker">第 2 课 · 战略设计 · 约 12 分钟</p>
+  <h1>限界上下文：一个词，两个意思</h1>
+  <p class="lede">上一课要你把语言统一。这一课告诉你统一到哪儿为止——以及为什么「全公司统一」是个陷阱。</p>
+
+  <div class="card">
+    <p><strong>你在地图上的位置：</strong>还在战略设计。第 1 课学的
+    <a href="0001-ubiquitous-language.html">统一语言</a> 有个前提没说破：一门语言只在某个<em>边界</em>内才是精确的。
+    这一课就是那个边界。随时打开 <a href="../reference/ddd-map.html">DDD 全景地图</a> 定位。</p>
+  </div>
+
+  <h2>上一课藏了半句话</h2>
+  <p>Evans 给统一语言的官方定义，你上一课只读到了前半截。完整版是这样的：</p>
+
+  <blockquote>
+    A language structured around the domain model and used by all team members
+    <strong>within a bounded context</strong> to connect all the activities of the team with the software.
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Definitions"（工作区内附官方 CC BY 4.0 副本）</cite>
+  </blockquote>
+
+  <p><em>within a bounded context</em>——这五个词是整个 DDD 战略设计的枢纽。统一语言从来不是「全公司说同一套词」，
+  而是「<strong>在一个边界内</strong>说同一套词」。跨过边界，同一个词换个意思，是合法的，甚至是必须的。</p>
+
+  <p>为什么不能全公司统一？因为有人认真试过，然后失败了：</p>
+
+  <blockquote>
+    Total unification of the domain model for a large system will not be feasible or cost-effective.
+    <span class="zh">（对一个大型系统的领域模型做完全统一，既不可行，也不划算。）</span>
+    <cite>— Eric Evans，转引自 Martin Fowler，<a href="https://martinfowler.com/bliki/BoundedContext.html">Bounded Context</a></cite>
+  </blockquote>
+
+  <p>Fowler 举过一个电力公司的例子：「<strong>电表</strong>（meter）」这个词在公司内部有三种互不相同的含义——
+  电网与某个地点的接入点、电网与某个客户的接入关系、以及墙上那个物理装置。
+  这三拨人开会时用同一个词毫无障碍，因为人脑会自动按语境消歧。
+  但软件不会。软件要求的精确度，容不下这种模糊。</p>
+
+  <div class="card">
+    <p><strong>关键转折：</strong>模糊不是因为大家没沟通好，而是因为<em>业务本身就分化了</em>。
+    销售的世界和仓库的世界确实不一样。想靠开会把它们统一成一个词，是在跟现实作对。
+    DDD 的做法反过来：<strong>承认分化，然后给每个分化的世界画一条明确的线。</strong></p>
+  </div>
+
+  <h2>不画线的下场：那个谁都不敢删字段的 Order</h2>
+  <p>每个公司都有这么一个类。它一开始很干净，然后每个团队往里加自己的字段，谁也不敢删别人的。</p>
+
+  <div class="compare">
+    <figure>
+      <figcaption class="bad-label">✗ 一个「全公司通用」的 Order</figcaption>
+      <pre><code>// Every team's needs, in one struct.
+// In any given use, most fields are noise.
+struct Order {
+  OrderId       id;
+  CustomerId    customer;
+  vector&lt;Line&gt;  lines;
+  string        coupon_code;   // sales
+  Money         discount;      // sales
+  Address       ship_to;       // fulfilment
+  double        weight_kg;     // fulfilment
+  string        carrier;       // fulfilment
+  string        tracking_no;   // fulfilment
+  string        invoice_title; // billing
+  string        tax_id;        // billing
+  Money         tax_amount;    // billing
+  int           status;        // 1..9 — meaning
+                               // depends on who you ask
+};</code></pre>
+    </figure>
+    <figure>
+      <figcaption class="good-label">✓ 两个上下文，各自完整且小</figcaption>
+      <pre><code>namespace sales {
+// "Order": what the customer committed to buy.
+class Order {
+ public:
+  void apply_coupon(const CouponCode&amp;);
+  Money total() const;
+  bool is_paid() const;
+ private:
+  CustomerId   customer_;
+  vector&lt;Line&gt; lines_;
+  Money        discount_;
+};
+}  // namespace sales
+
+namespace fulfilment {
+// "Shipment": a box that must reach an address.
+// Coupons simply do not exist here.
+class Shipment {
+ public:
+  void dispatch(const Carrier&amp;);
+ private:
+  SalesOrderId order_;  // the link across
+  Address      destination_;
+  Weight       weight_;
+};
+}  // namespace fulfilment</code></pre>
+    </figure>
+  </div>
+
+  <p>右边有三处值得停下来看：</p>
+  <ul>
+    <li><strong>物流那边根本不叫 Order，叫 Shipment。</strong>边界给了你重命名的自由——在仓库主管的语言里，那就是「一个要送到某地址的箱子」，不是「订单」。名字跟着语言走，而语言跟着上下文走。</li>
+    <li><strong>跨界只留一个 id（<code>SalesOrderId</code>），不是共享对象。</strong>边界之所以成立，靠的就是不共享模型。共享了类型，边界就只是画在纸上。</li>
+    <li><strong>那个万恶的 <code>status</code> 消失了。</strong>因为它本来就是三个概念被硬塞进一个 int：销售关心「付没付」，物流关心「发没发」，计费关心「开没开票」。拆开之后，每个上下文的状态都能用自己的语言精确表达。</li>
+  </ul>
+
+  <div class="ctx-map cols-2">
+    <div class="ctx-box">
+      <h4>销售上下文 <span style="font-weight:400;color:var(--ink-soft)">Sales</span></h4>
+      <p class="ctx-sub">语言的主人：销售、运营</p>
+      <ul>
+        <li><span class="ctx-word">订单</span> = 客户承诺购买的东西</li>
+        <li>关心：优惠券、客单价、是否已支付</li>
+        <li>「已完成」= 钱到账了</li>
+      </ul>
+    </div>
+    <div class="ctx-box">
+      <h4>履约上下文 <span style="font-weight:400;color:var(--ink-soft)">Fulfilment</span></h4>
+      <p class="ctx-sub">语言的主人：仓库、物流</p>
+      <ul>
+        <li><span class="ctx-word">包裹</span> = 要送到某地址的箱子</li>
+        <li>关心：重量、承运商、拆包补发</li>
+        <li>「已完成」= 客户签收了</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>注意「已完成」——同一个词，两个上下文里是两个完全不同的事实。
+  如果你把它们塞进一个 <code>status</code> 字段，你就得永远回答「已完成到底是谁的已完成」这个问题。</p>
+
+  <h2>边界画在哪儿？Evans 说得很具体</h2>
+  <p>限界上下文的官方定义只有一句话：</p>
+  <blockquote>
+    A description of a boundary (typically a subsystem, or the work of a particular team)
+    within which a particular model is defined and applicable.
+    <span class="zh">（一条边界的描述——通常是一个子系统，或某个特定团队的工作范围——在这条边界内，某个特定的模型有定义、且适用。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Definitions"</cite>
+  </blockquote>
+  <p>而模式条目里的行动指令（Evans 的原文用 <em>Therefore:</em> 引出）告诉你这条线要划在哪些地方——注意，它不只是代码里的一条线：</p>
+  <ul>
+    <li><strong>团队组织</strong>（team organization）——谁在维护这个模型</li>
+    <li><strong>应用的特定部分</strong>（usage within specific parts of the application）</li>
+    <li><strong>物理产物：代码库与数据库 schema</strong>（code bases and database schemas）</li>
+  </ul>
+  <p>换句话说，一条真边界是有牙齿的：不同的团队、不同的代码库、不同的表。
+  如果两个「上下文」共享同一套表、同一批类，那它们只是文档里的两个词，不是两个限界上下文。
+  <em>这是最常见的假 DDD——包名分了，模型没分。</em></p>
+
+  <div class="card">
+    <p><strong>你现在获得的技能：用语言探测边界。</strong>不要一上来就问「系统该怎么拆」。
+    去听业务方说话，找两种信号：<br>
+    ① <strong>同词异义</strong>——同一个词，两拨人说的不是一回事（电表、订单、客户）。<br>
+    ② <strong>异词同义</strong>——两拨人用不同的词说同一件事（销售叫「订单」，仓库叫「出库单」）。<br>
+    这两种信号出现的地方，就有一条边界在等着被画出来。</p>
+  </div>
+
+  <h2>练一练：听话辨边界</h2>
+  <p>下面每句都是某个真实角色说的原话。判断它属于哪个上下文的语言——注意找那个「破绽词」。</p>
+  <div id="sort"></div>
+
+  <h2>试一试</h2>
+  <p>凭记忆作答，别往回翻。第 3 题会回扣第 1 课——如果它让你觉得「咦，我上次好像理解得不够准」，那正是它的用意。</p>
+  <div id="quiz"></div>
+
+  <h2>主推读物</h2>
+  <p>本课首选延伸阅读（8 分钟）：Martin Fowler 的
+  <a href="https://martinfowler.com/bliki/BoundedContext.html">Bounded Context</a>——电表的例子出自这里，
+  是对本课最好的补充。想读一手定义，工作区里已经放了 Evans 官方的
+  <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference（PDF，CC BY 4.0）</a>，
+  翻到第 2 页 "Bounded Context"，正好一页，本课所有引文都出自那里。</p>
+
+  <footer class="lesson-footer">
+    <p><strong>有不清楚的？</strong>直接在终端里问我。这一课最容易卡住的地方通常是这几个，欢迎追问：
+    「限界上下文和微服务是一回事吗？」「一个上下文该多大？」「两个上下文都要 Customer，难道字段要抄两遍？」
+    ——最后这个问题的答案会直接引出后面的上下文映射与防腐层。</p>
+    <p><strong>下一课预告：</strong>子域（核心 / 支撑 / 通用）——你现在会画边界了，
+    但每块地不一样贵。下一课教你判断该把设计精力砸在哪一块，以及哪些块<em>根本不该用 DDD</em>。</p>
+  </footer>
+</article>
+
+<script src="../assets/categorize.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+renderCategorize(document.getElementById("sort"), {
+  perfect: "你已经能用语言探测边界了。",
+  imperfect: "看看答错那条的「破绽词」，那才是练习的重点。",
+  buckets: ["销售上下文", "履约上下文", "计费上下文"],
+  items: [
+    {
+      text: "「这个客户用了满 300 减 50 的券，实付 268。」",
+      bucket: 0,
+      explain: "破绽词：券、实付。优惠与成交价是销售的语言——仓库不关心这单花了多少钱，只关心箱子多重。"
+    },
+    {
+      text: "「这单太重了，得拆成两个包裹，走陆运。」",
+      bucket: 1,
+      explain: "破绽词：拆成两个包裹。这里出现了销售语言中根本不存在的概念——一「单」可以变成两个物件。这正是同词异义：销售的「订单」是不可拆的一次承诺，履约的世界里它天然是可拆的。"
+    },
+    {
+      text: "「客户要开专票，抬头和税号必须对得上。」",
+      bucket: 2,
+      explain: "破绽词：抬头、税号。发票是计费的语言。注意它有自己的生命周期——货发完了票可能还没开，所以它不能挤进履约的状态里。"
+    },
+    {
+      text: "「这批缺一件，先把有的发了，剩下的补发。」",
+      bucket: 1,
+      explain: "破绽词：补发。销售那边这单只成交了一次，履约这边却发生了两次发货——一对多。如果用一个 Order 类硬扛，你就得加个 shipment_count 字段，然后一路加下去。"
+    },
+    {
+      text: "「他加购了延保，这单的客单价上去了。」",
+      bucket: 0,
+      explain: "破绽词：加购、客单价。这是销售在算成交结构。延保甚至没有实体要发货——它在履约的语言里几乎不存在。"
+    },
+    {
+      text: "「跨境这笔得按目的国的税率重算一遍。」",
+      bucket: 2,
+      explain: "破绽词：税率、重算。税务规则是计费的核心复杂度，与「客户买了什么」「箱子送到哪」都正交——三种关切，三套语言，三条边界。"
+    }
+  ]
+});
+
+renderQuiz(document.getElementById("quiz"), [
+  {
+    stem: "限界上下文所界定的边界之内，保持严格一致的是什么？",
+    options: [
+      "一套数据库的表结构",
+      "一门编程语言与框架",
+      "一个模型和它的语言",
+      "一组团队的排班制度"
+    ],
+    answer: 2,
+    explain: "Evans 的定义：边界之内「某个特定的模型有定义、且适用」。表结构和代码库是这条边界的物理体现（Evans 明确点名了 code bases and database schemas），但边界要守护的东西是模型与语言的一致性——物理隔离是手段，不是目的。"
+  },
+  {
+    stem: "电力公司里「电表」一词有三种不同含义。这件事说明了什么？",
+    options: [
+      "该词需要一个全局的标准定义",
+      "该词属于技术债应当尽快清理",
+      "该词最好拆成三个不同的词汇",
+      "该词的含义只在上下文内确定"
+    ],
+    answer: 3,
+    explain: "Evans 的原话是「Model expressions, like any other phrase, only have meaning in context」。DDD 不追求全局唯一的词——那正是「完全统一不可行」所否定的。允许「电表」在三个上下文里各是一个意思，反而是解法。（在各自上下文内部把它改叫更精确的名字当然可以，但那是上下文内的事，不是全局改名。）"
+  },
+  {
+    stem: "回扣第 1 课：统一语言所要求的「统一」，范围有多大？",
+    options: [
+      "在整个公司的范围内统一",
+      "在单个限界上下文内统一",
+      "在单个开发团队内部统一",
+      "在单个代码仓库范围统一"
+    ],
+    answer: 1,
+    explain: "定义里写死了：within a bounded context。这是对第 1 课的精修——统一语言不是全公司词典。团队边界和代码库边界常常与上下文边界重合（Evans 建议让它们重合），但定义锚在上下文上：一个团队可以维护多个上下文。"
+  },
+  {
+    stem: "销售的「订单」含优惠券，仓库的「订单」含包裹重量。最好的做法是？",
+    options: [
+      "建一个含所有字段的订单类",
+      "让仓库直接复用销售订单类",
+      "把差异字段放进扩展字段表",
+      "各上下文建自己的订单模型"
+    ],
+    answer: 3,
+    explain: "前三个选项都是同一个错误的不同包装：让一个模型服务两种语言。扩展字段表尤其阴险——它看起来解耦了，实际上两个上下文仍然共享同一个身份与生命周期。正解是各建各的模型，跨界只传 id。"
+  }
+]);
+</script>
+</body>
+</html>
