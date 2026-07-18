@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 6 课 · 领域事件：边界外面的事怎么办</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<article>
+  <p class="kicker">第 6 课 · 战术设计 · 约 14 分钟</p>
+  <h1>领域事件：边界外面的事怎么办</h1>
+  <p class="lede">上一课你学会了<strong>画边界</strong>，也学会了一句硬规矩：一个事务只改一个聚合。
+  可现实里，订单一确认，库存要扣、积分要加、短信要发——它们全在别的聚合里。这一课就补上那个出口。</p>
+
+  <div class="card">
+    <p><strong>你在地图上的位置：</strong>第 5 课你把「下单即扣库存」判在了<a href="0005-aggregate.html">聚合边界外</a>，
+    理由是它不是不变量、是业务流程。判得对——但当时留了个洞：<em>边界外的事，到底怎么发生？</em>
+    这一课给答案。随时打开 <a href="../reference/ddd-map.html">DDD 全景地图</a> 定位。</p>
+  </div>
+
+  <h2>先热身：回顾检查</h2>
+  <p>两道回扣前两课的题。凭记忆作答。</p>
+  <div id="review"></div>
+
+  <h2>问题：聚合是座孤岛</h2>
+  <p>你的生鲜电商，一条业务事实：<strong>「订单确认了。」</strong>紧跟着一串后果——
+  扣库存、加积分、发确认短信、通知仓库拣货。</p>
+  <p>可你上一课刚立下规矩：<code>Order</code> 只管自己那个圈，<strong>一个事务只改一个聚合</strong>。
+  于是 <code>Order.confirm()</code> 里<em>不能</em>去动库存聚合，更不能调短信服务——那会把四个聚合锁进一个大事务，
+  正是第 5 课警告过的「大圈、大锁、烂并发」。</p>
+  <p>那这些后果谁来触发？最糟的答案是让 <code>OrderService</code> 在确认订单后，
+  手动一个个去调 <code>inventory.deduct()</code>、<code>points.add()</code>、<code>sms.send()</code>——
+  <code>Order</code> 于是隐式知道了全世界，每加一个后果就得回去改它。<strong>耦合又长回来了。</strong></p>
+
+  <h2>解法：把「已发生的事」变成一等公民</h2>
+  <p>Evans 的处方，一句话定义：</p>
+  <blockquote>
+    <strong>Something happened that domain experts care about.</strong>
+    <span class="zh">（一件领域专家关心的事，发生了。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Domain Events"（第 13 页）</cite>
+  </blockquote>
+  <blockquote>
+    Therefore: <strong>Model information about activity in the domain as a series of discrete events.
+    Represent each event as a domain object.</strong>
+    <span class="zh">（因此：把领域中的活动建模成一串离散的「事件」，把每个事件表示成一个领域对象。）</span>
+    <cite>— DDD Reference，"Domain Events"（第 13 页）</cite>
+  </blockquote>
+
+  <p>换句话说：<code>Order</code> 不去命令任何人，它只<strong>大喊一声事实</strong>——
+  <code>OrderConfirmed！</code>——然后就不管了。谁关心这件事，谁自己去订阅。
+  库存、积分、短信各自听到、各自反应。<code>Order</code> 根本不知道它们的存在。</p>
+
+  <div class="card" style="border-color:var(--accent)">
+    <p style="margin:0"><strong>一个字之差，是整个模式的分水岭：</strong>
+    <code>OrderConfirmed</code>（订单已确认）是<strong>事件</strong>——过去式，陈述一个既成事实；
+    <code>ConfirmOrder</code>（确认订单）是<strong>命令</strong>——祈使句，要求别人做事。
+    事件不是「请你扣库存」，而是「我这边确认了，与你无关」。发布者<em>不假设任何人会做任何反应</em>——这正是解耦的来源。</p>
+  </div>
+
+  <h2>事件长什么样：三条，全是你已经会的</h2>
+  <ol>
+    <li><strong>过去式、不可变的事实</strong>。它是历史，改不了。Evans：
+    <em>Domain events are ordinarily immutable, as they are a record of something in the past.</em>
+    ——不可变？没标识？按值相等？<strong>这不就是<a href="0004-entity-vs-value-object.html">值对象</a>吗。</strong>
+    你第 4 课就会写了，只是现在它有了名字。</li>
+    <li><strong>携带 id 和快照，不携带引用</strong>。Evans 说事件里装
+    <em>the identity of entities involved in the event</em>——是<strong>标识</strong>，不是指针。
+    这是第 5 课「跨聚合只用 id」的同一条纪律：事件里放 <code>CustomerId</code>、放当时的 <code>total</code> 快照，
+    <em>绝不放</em> <code>Order*</code>。放了指针，订阅者就能顺着它反向篡改聚合——和上一课那个泄漏 getter、
+    第 4 课那个 <code>Product&amp;</code> 是同一种病。</li>
+    <li><strong>由聚合根产生，和状态改变同时发生</strong>。根是唯一的门（第 5 课）——
+    状态变成「已确认」的那一刻，正是事实诞生的那一刻，事件就在这里被记下。不早不晚。</li>
+  </ol>
+
+  <h2>C++：事件是值对象，事件集是 <code>std::variant</code></h2>
+  <p>先把事件写出来。注意它和 <code>Order</code> 的刺眼对比——<strong>同一个 <code>= default</code>，
+  在这里是对的，在 <code>Order</code> 上是头号事故</strong>（这正是你回顾检查第 2 题在考的）：</p>
+
+  <pre><code>// A domain event: past-tense fact, immutable, equal BY VALUE.
+struct OrderConfirmed {
+  OrderId    order;
+  CustomerId customer;   // identity of another aggregate — held BY ID
+  Money      total;      // a snapshot of the fact, NOT a live handle
+  TimePoint  at;
+  bool operator==(const OrderConfirmed&amp;) const = default;  // ✓ correct: it's a value
+};
+
+// The CLOSED set of facts this aggregate can emit. A sum type — the C++ way to
+// say "one of these, and the compiler knows every one." std::visit then forces
+// you to handle each; add a new event and the compiler points at what's missing.
+using OrderEvent = std::variant&lt;OrderConfirmed, OrderCancelled&gt;;</code></pre>
+
+  <div class="card">
+    <p style="margin:0"><strong>这是 Java 教材给不了的角度。</strong>那边领域事件通常是一棵接口继承树——开放的，
+    编译器不知道一共有几种。C++ 的 <code>std::variant</code> 把「这个聚合只会发这几种事」
+    变成一个<em>封闭</em>的类型，<code>std::visit</code> 逼你把每一种都处理掉。少写一个 case，编译期就红了。</p>
+  </div>
+
+  <p>再看根怎么产生事件——它只是<strong>记下来</strong>，不亲自去执行任何后果：</p>
+  <pre><code>class Order {                      // the aggregate ROOT
+ public:
+  // The fact and the state change happen together, in ONE operation.
+  void confirm(TimePoint now) {
+    if (confirmed_) throw std::domain_error{"order already confirmed"};
+    confirmed_ = true;
+    events_.push_back(OrderConfirmed{id_, customer_, total_, now});
+  }
+
+  // The application layer pulls the facts and publishes them AFTER this
+  // aggregate's transaction commits. Pulling clears the buffer: released once.
+  std::vector&lt;OrderEvent&gt; pull_events() { return std::exchange(events_, {}); }
+
+ private:
+  CustomerId              customer_;   // held BY ID (lesson 5)
+  bool                    confirmed_ = false;
+  std::vector&lt;OrderEvent&gt; events_;     // facts recorded, not yet announced
+};</code></pre>
+
+  <p>关键在<strong>时序</strong>——这就是第 5 课那句「跨边界异步」落到代码上的样子：</p>
+  <pre><code>order.confirm(now);              // 1. change ONE aggregate, commit its transaction
+saveToDb(order);                 //    (order is now durably "confirmed")
+
+for (auto&amp; e : order.pull_events())
+  publish(e);                    // 2. AFTER the commit, announce — subscribers
+                                 //    (inventory, points, sms) react in their own
+                                 //    transactions, eventually consistent</code></pre>
+
+  <blockquote style="margin-top:1rem">
+    Within an aggregate boundary, apply consistency rules synchronously.
+    <strong>Across boundaries, handle updates asynchronously.</strong>
+    <span class="zh">（边界内同步保证一致；跨边界异步更新。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Aggregates"（第 16 页）</cite>
+  </blockquote>
+
+  <div class="card">
+    <p><strong>本课代码全部真编译过。</strong><code>code/lesson6_check.cc</code>，clang 17 / <code>-std=c++20 -Wall -Wextra</code>
+    零告警，跑了一串断言，包括：确认时 <code>inventory</code> <strong>纹丝不动</strong>（副作用没在事务里发生）、
+    <code>publish</code> 之后库存才 <code>-1</code>、以及<strong>用一条绿色断言证明一件坏事</strong>——
+    应用层若忘了 <code>publish</code>（把 <code>pull_events()</code> 的结果丢掉），库存就<em>永远不会</em>被扣，
+    而且没有任何报错。<code>assert(inv.units == 99)</code> 通过——那个扣减无声地蒸发了。跑法见 <a href="../code/README.md">code/README.md</a>。</p>
+  </div>
+
+  <h2>护栏：别把什么都做成事件</h2>
+  <p>和「别把聚合画大」是同一个警惕心。你已经知道 <a href="0003-subdomains.html">DDD 不是处处适用</a>，
+  这里是它的又一个战术版：<strong>只有领域专家真正关心的事实，才配当领域事件</strong>。Evans 说得直白：</p>
+  <blockquote>
+    Ignore irrelevant domain activity while making explicit the events that the domain experts
+    want to track or be notified of.
+    <span class="zh">（忽略无关紧要的领域活动，只把领域专家想追踪、想被通知的那些事显式建模出来。）</span>
+    <cite>— DDD Reference，"Domain Events"（第 13 页）</cite>
+  </blockquote>
+  <p>「用户点了一下按钮」是 UI 事件，不是领域事件；「某字段被 set 了一次」是实现细节，不是领域事件。
+  给每个 setter 都发一个事件，你会淹死在噪音里，业务方一个都不关心。判据只有一个：
+  <strong>业务方会说「哦，这件事很重要，我要知道它发生了」吗？</strong></p>
+
+  <h2>练一练：这该不该做成领域事件</h2>
+  <p><strong>场景：</strong>生鲜电商的销售上下文。每一项：值得建成一个领域事件吗？</p>
+  <div id="sort"></div>
+
+  <h2>试一试</h2>
+  <div id="quiz"></div>
+
+  <h2>主推读物</h2>
+  <p>本课首选延伸阅读：继续读 Vaughn Vernon 的
+  <a href="https://www.dddcommunity.org/library/vernon_2011/"><strong>Effective Aggregate Design</strong></a> 的
+  <strong>Part III</strong>（免费，dddcommunity.org 官方）。上一课你读了 Part I（聚合要小）；
+  Part III 正好接上这一课——他演示如何<em>用领域事件让两个聚合达成最终一致</em>：一个聚合在自己的事务里改完、
+  发出事件，另一个聚合在稍后的事务里响应。你这一课的 <code>confirm → pull → publish</code> 就是它的骨架。
+  一手定义见 <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a> 第 13 页，本课引文都出自那一页
+  （注意标题上的 <code>*</code>——领域事件是 Evans 在蓝皮书<em>之后</em>才补进模式语言的三个模式之一）。</p>
+
+  <footer class="lesson-footer">
+    <p><strong>做完告诉我：你答错了哪几道、当时选的是哪个</strong>（全对就说一句「全对」）。
+    本课有三个计分区——课首<em>回顾检查</em>、中段<em>练一练</em>、课末<em>试一试</em>，每个做完都会在底部弹一行「得分：X / N」。
+    我真正用得上的是错题（比总分信息量大），按它决定下一课的难度。
+    （第 4、5 课的分数一直没收到，这一课的回顾检查就替它们补证据——你答得怎么样，我这边就算数了。）</p>
+    <p><strong>有不清楚的？</strong>问我。这一课常见的卡点：
+    「事件发出去，万一订阅方处理失败了怎么办？」（——这就是为什么真实系统要<strong>发件箱（outbox）</strong>
+    和「至少一次 + 幂等」，Evans 那句「两个相同事件到达能被认出是同一个」埋的就是这个，等分层架构讲完再展开）
+    「<code>publish</code> 到底该写在哪一层？」（——不在领域层，在<strong>应用层</strong>，这正是下一课的分层架构）
+    「事件要不要落库？」（——要，这引出仓储和发件箱）</p>
+    <p><strong>下一课预告：仓储与分层架构（Repository &amp; Layered Architecture）</strong>——
+    你已经有了聚合，也有了事件，但它们现在都活在内存里。下一课解决两件事：
+    聚合怎么<em>存进去、取出来</em>而不让数据库反过来污染领域模型；<code>confirm → pull → publish</code>
+    这套编排到底<em>住在哪一层</em>。</p>
+  </footer>
+</article>
+
+<script src="../assets/categorize.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz(document.getElementById("review"), [
+  {
+    stem: "有人主张把 Order 和 Payment 合并成一个聚合，理由是「每笔付款都必须对应一张订单」。该不该合并？",
+    options: [
+      "不该，除非有不变量要求二者同时正确",
+      "该合并，因为付款必须对应到订单",
+      "该合并，这样能共用同一个事务锁",
+      "不该，因为两者本来就分属两张表"
+    ],
+    answer: 0,
+    explain: "「必须对应」只是一条引用关系，用 OrderId 就能表达，不构成把它们捆进一个事务的理由。边界由不变量决定——要有一条规则要求它们「同时」正确，才画一个圈。选项 B、C 正是第 5 课警告的「为关联付事务和锁的钱」；D 又把因果倒过来了（是模型决定存储，不是表决定聚合）。这一课你会看到：付款完成后要通知订单，靠的不是合并，而是一个 PaymentReceived 事件。"
+  },
+  {
+    stem: "同事把「配送时段（如 9:00–11:00）」建成了带自增 id 的实体，好在列表里排序。这个推理错在哪？",
+    options: [
+      "排序需求不构成标识",
+      "时段永远都是值对象",
+      "自增 id 的性能不好",
+      "值对象不能参与排序"
+    ],
+    answer: 0,
+    explain: "「我要拿它排序」是展示和检索的需求，不是「两个起止完全相同的时段是两个不同东西」的理由。判据永远是那一问：属性全相同的两个，是不是一回事？9:00–11:00 和另一个 9:00–11:00 就是同一个时段——值对象。值对象照样能排序（给它 operator<=> 即可）。选项 B 也错：在排班上下文里，「周二上午这个具体班次」可以是实体。这就是第 4 课那道「查询需求 ≠ 标识」的同一个病。"
+  }
+], {
+  perfect: "聚合和值对象都还在手上。可以进入事件了。",
+  imperfect: "先回第 4、5 课扫一眼——这一课要站在它们上面。"
+});
+
+renderCategorize(document.getElementById("sort"), {
+  perfect: "你已经会用「领域专家关心吗 + 是不是既成事实」来筛事件了。",
+  imperfect: "看看答错那条——判据只有两个：这是不是一件已发生的事实？领域专家会想知道它吗？",
+  buckets: ["该做成领域事件", "不该"],
+  items: [
+    {
+      text: "「订单已确认。」（下游要扣库存、加积分、发短信）",
+      bucket: 0,
+      explain: "该。这是一件已发生、且一大堆下游都关心的领域事实——OrderConfirmed。它正是把「确认」这个动作和它的一串跨聚合后果解耦开的那个支点：Order 喊一声，谁关心谁订阅。"
+    },
+    {
+      text: "「确认这张订单。」（用户点了『确认下单』按钮，请求处理它）",
+      bucket: 1,
+      explain: "不该——这是命令（Command），不是事件。一个字之差：ConfirmOrder 是祈使句，要求系统去做某事，可能失败、可能被拒；OrderConfirmed 是过去式，陈述已经做成的事实，改不了。命令进来、被聚合处理、成功后才产生事件。把两者混为一谈，是这一课最核心的分辨。"
+    },
+    {
+      text: "「库存已扣减。」（订单确认后，仓储子域完成了扣减）",
+      bucket: 0,
+      explain: "该，InventoryDeducted。它是另一个聚合响应 OrderConfirmed 后产生的新事实，而它自己又可能触发下一环（比如低于安全库存就 LowStockRaised 通知采购）。领域事件天然串成链——这正是最终一致性推进业务流程的方式。"
+    },
+    {
+      text: "「Order 对象的 status_ 字段被 set 成了 2。」",
+      bucket: 1,
+      explain: "不该。这是实现细节，不是领域事实——领域专家不关心某个字段被赋了什么值，他们关心「订单确认了」。给每个 setter 都发事件会淹没在噪音里。Evans：忽略无关紧要的领域活动，只显式建模领域专家想追踪的那些。事件要说业务的话（回扣第 1 课统一语言），不是说数据结构的话。"
+    },
+    {
+      text: "「鼠标在『确认』按钮上悬停了 300 毫秒。」",
+      bucket: 1,
+      explain: "不该。这是 UI/系统事件，活在软件自己的世界里，不在领域里。Evans 明确把领域事件和「反映软件自身活动的系统事件」区分开。判据那一问在这里响亮地答『否』：没有任何领域专家会说「我要知道每次悬停」。"
+    },
+    {
+      text: "「客户信用额度已下调。」（风控把某客户的额度从 1 万降到 5 千）",
+      bucket: 0,
+      explain: "该，CreditLimitLowered。这是领域专家（风控、销售）高度关心的既成事实，且有明确下游：进行中的订单可能要复核、客户要被通知。注意它发生在 Customer 聚合里，却被 Order 上下文关心——跨聚合的协作正是靠事件传递，而不是让 Order 伸手进 Customer。"
+    }
+  ]
+});
+
+renderQuiz(document.getElementById("quiz"), [
+  {
+    stem: "领域事件和命令（Command）最本质的区别是什么？",
+    options: [
+      "事件陈述已发生的事实，命令请求去做某事",
+      "事件用英文命名，命令用中文命名",
+      "事件由数据库触发，命令由用户触发",
+      "事件可以失败，命令一定会成功"
+    ],
+    answer: 0,
+    explain: "OrderConfirmed（过去式，既成事实，改不了）vs ConfirmOrder（祈使句，请求，可能被拒）。这个分辨是整课的核心。因为事件只陈述事实、不要求反应，发布者才敢对订阅者一无所知——解耦就来自这里。选项 D 恰好说反了：命令可能失败（校验不过就拒），事件是已经成功之后的产物。"
+  },
+  {
+    stem: "领域事件里为什么应该放 CustomerId，而不是放一个 Customer 的指针或引用？",
+    options: [
+      "事件是过去的不可变快照，指针会成为反向篡改聚合的通道",
+      "指针占用的内存比 id 更大",
+      "id 更方便打印到日志里",
+      "C++ 不允许把指针放进 struct"
+    ],
+    answer: 0,
+    explain: "事件是「某时刻的事实快照」，不是回到聚合的活handle。放指针，订阅者就能顺着它反向修改聚合，绕过根——和第 5 课那个泄漏 getter、第 4 课那个 Product& 是同一种病。Evans 说事件携带的是 the identity of entities involved：标识，不是引用。附带红利还是老几样：不用 include Customer 的头、没有生命周期纠缠、跨进程也能序列化。"
+  },
+  {
+    stem: "为什么 OrderConfirmed 可以用 `operator==(...) const = default`，而 Order 绝不能？",
+    options: [
+      "事件的身份就是它的属性，订单的身份是它的 id",
+      "事件的成员比订单少，可以逐个比较",
+      "事件不进数据库，订单要进数据库",
+      "事件是 struct，订单是 class"
+    ],
+    answer: 0,
+    explain: "同一个 C++ 特性，两个相反答案——分野不在语法，在「什么叫同一个」。领域事件是值对象：身份就是属性本身，逐成员比较正是对的。Order 是实体：身份是 id，逐成员比较会把两张内容相同的不同订单判成一张。这是第 4、5 课那条主线的第三次出现：值 = 按属性相等，实体 = 按 id 相等。选项 D 是干扰——struct/class 只差默认访问权限，和这个判断毫无关系。"
+  },
+  {
+    stem: "`order.confirm()` 应该在方法内部直接调用 `inventory.deduct()` 来扣减库存吗？",
+    options: [
+      "不该，那会把两个聚合锁进一个事务",
+      "该，这样能保证库存立刻扣减",
+      "该，只要加一个分布式事务即可",
+      "不该，因为库存服务可能没上线"
+    ],
+    answer: 0,
+    explain: "一个事务只改一个聚合（第 5 课）。confirm 只改 Order、记下 OrderConfirmed 事件，然后返回;库存的扣减由订阅者在 confirm 的事务提交之后、于自己的事务里完成——最终一致。选项 B/C 正是第 5 课批过的「大圈大锁烂并发」，热门商品当场把系统锁死。本课验证代码专门断言了：confirm 时库存纹丝不动，publish 之后才 -1。"
+  },
+  {
+    stem: "交错考察：聚合根记下了事件，但应用层忘了把它们 publish 出去。后果是什么？",
+    options: [
+      "下游副作用无声地永不发生，且没有任何报错",
+      "编译期会直接报错并拒绝通过",
+      "聚合的事务会自动回滚",
+      "事件会在下次加载时自动重发"
+    ],
+    answer: 0,
+    explain: "事件只是被记进 events_、又被 pull 出来丢掉，库存的扣减就此蒸发，而编译器和运行时全程沉默——本课用一条绿色的 assert(inv.units == 99) 证明了这件坏事真会发生。这正是为什么真实系统不能靠「记得手动 publish」，而要把事件和聚合状态在同一个事务里落库（发件箱 outbox），再由后台可靠地投递。选项 D 说的是「有了 outbox 之后」才成立的性质——现在还没有，所以副作用是真的丢了。"
+  }
+]);
+</script>
+</body>
+</html>

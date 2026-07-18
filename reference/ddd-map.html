@@ -56,9 +56,9 @@
         <dt>聚合 <span class="en">Aggregate</span></dt>
         <dd>一簇实体/值对象组成的一致性单元，只能通过聚合根访问和修改。</dd>
         <dt>仓储 <span class="en">Repository</span></dt>
-        <dd>让聚合的存取看起来像操作一个内存集合，隔离持久化细节。</dd>
+        <dd>让聚合的存取看起来像操作一个内存集合，隔离持久化细节。一个聚合根配一个仓储；接口在领域层，实现在基础设施层。→ <a href="../lessons/0007-repository-layered-architecture.html">第 7 课</a></dd>
         <dt>领域事件 <span class="en">Domain Event</span></dt>
-        <dd>领域中已经发生、业务方关心的事实：OrderCancelled。</dd>
+        <dd>领域中已经发生、业务方关心的事实：OrderConfirmed。过去式、不可变（值对象），携 id 不携引用，由根产生，跨边界靠它异步协作。→ <a href="../lessons/0006-domain-event.html">第 6 课</a></dd>
         <dt>领域服务 <span class="en">Domain Service</span></dt>
         <dd>不自然属于任何实体/值对象的领域操作，无状态。</dd>
       </dl>

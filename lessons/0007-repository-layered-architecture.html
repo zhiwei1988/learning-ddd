@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 7 课 · 仓储与分层架构：领域模型住哪、怎么存</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  /* Three stacked layers with an inward-pointing dependency arrow. Reuses the
+     ctx-box look from course.css; only the stack + arrow are lesson-local. */
+  .layers { margin: 1.5rem 0; }
+  .layer {
+    border: 1px solid var(--rule); border-radius: 10px;
+    padding: 0.8rem 1rem; margin: 0.5rem 0; background: var(--card-bg);
+  }
+  .layer h4 { margin: 0 0 0.2rem; font-family: -apple-system, "PingFang SC", sans-serif; }
+  .layer p { margin: 0; font-size: 0.9rem; color: var(--ink-soft); }
+  .layer.domain { border-color: var(--accent); border-width: 2px; }
+  .layer .tag {
+    float: right; font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 999px;
+    border: 1px solid var(--rule); color: var(--ink-soft); font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+  .dep-note {
+    text-align: center; font-size: 0.85rem; color: var(--accent);
+    font-family: -apple-system, "PingFang SC", sans-serif; margin: 0.3rem 0;
+  }
+</style>
+</head>
+<body>
+<article>
+  <p class="kicker">第 7 课 · 战术设计 → 架构 · 约 16 分钟</p>
+  <h1>仓储与分层架构：领域模型住哪、怎么存</h1>
+  <p class="lede">你手上已经有了聚合、有了领域事件——但它们现在全活在内存里。这一课回答两个你上一课就追问过的问题：
+  聚合怎么<strong>存进去、取出来</strong>而不被数据库反噬；<code>confirm → 保存 → 发布</code>这套编排，到底<strong>住在哪一层</strong>。</p>
+
+  <div class="card">
+    <p><strong>你在地图上的位置：</strong>前几课都在<em>单个聚合内部</em>打转。这一课镜头拉远，
+    看整个系统怎么分层、领域模型怎么和数据库/消息总线打交道——这是你从「会写模式」迈向<strong>「会做架构」</strong>的第一步。
+    随时打开 <a href="../reference/ddd-map.html">DDD 全景地图</a> 定位。</p>
+  </div>
+
+  <h2>先热身：回顾检查</h2>
+  <p>两道回扣前几课的题。凭记忆作答。</p>
+  <div id="review"></div>
+
+  <h2>问题：领域模型正在被基础设施淹没</h2>
+  <p>不分层的代码长什么样，你一定见过：<code>Order</code> 类里直接拼 SQL，业务规则散落在 UI 控件的回调和数据库脚本里。
+  Evans 一针见血：</p>
+  <blockquote>
+    When the domain-related code is diffused through such a large amount of other code, it becomes
+    extremely difficult to see and to reason about. Superficial changes to the UI can actually change
+    business logic.
+    <span class="zh">（当领域代码被稀释、散落在大量其他代码里，它就变得极难看清、极难推理。改一下界面，竟能改掉一条业务规则。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Layered Architecture"（第 10 页）</cite>
+  </blockquote>
+  <p>你上一课把聚合和事件都建好了，可它们一旦要落库、要真的把 <code>OrderConfirmed</code> 发出去，
+  就会有人忍不住往 <code>Order</code> 里塞一句 <code>INSERT INTO ...</code>。那一刻，你精心画的聚合边界就开始漏了。</p>
+
+  <h2>解法：把系统切成层，让依赖<strong>只朝一个方向</strong></h2>
+  <blockquote>
+    Therefore: <strong>Isolate the expression of the domain model and the business logic, and eliminate
+    any dependency on infrastructure, user interface, or even application logic that is not business logic.</strong>
+    Partition a complex program into layers. Develop a design within each layer that is cohesive and that
+    <strong>depends only on the layers below.</strong>
+    <span class="zh">（因此：把领域模型和业务逻辑隔离出来，剔除它对基础设施、界面、乃至任何非业务的应用逻辑的依赖。
+    把复杂程序切成若干层，每层内部内聚，且<em>只依赖它下面的层</em>。）</span>
+    <cite>— DDD Reference，"Layered Architecture"（第 10 页）</cite>
+  </blockquote>
+
+  <p>整节课其实只有一句话：<strong>依赖只朝里指。</strong>领域层坐在最里面，谁都不依赖；越往外，越依赖里面。</p>
+
+  <div class="layers">
+    <div class="layer">
+      <span class="tag">最外层</span>
+      <h4>基础设施层 <span style="font-weight:400;color:var(--ink-soft);font-size:0.85em">Infrastructure</span></h4>
+      <p>数据库、消息总线、HTTP、第三方 SDK。<strong>它认识领域层</strong>（去实现领域定义的接口），领域层不认识它。</p>
+    </div>
+    <p class="dep-note">▲ 依赖朝里指（外层认识内层，内层不认识外层）</p>
+    <div class="layer">
+      <span class="tag">中间</span>
+      <h4>应用层 <span style="font-weight:400;color:var(--ink-soft);font-size:0.85em">Application</span></h4>
+      <p>薄薄的编排：取出聚合 → 调用它 → 保存 → 发布事件。<strong>不含任何业务规则</strong>，只负责把用例串起来、管事务边界。</p>
+    </div>
+    <p class="dep-note">▲</p>
+    <div class="layer domain">
+      <span class="tag">最里层</span>
+      <h4>领域层 <span style="font-weight:400;color:var(--ink-soft);font-size:0.85em">Domain</span></h4>
+      <p>实体、值对象、聚合、领域事件、业务规则。<strong>不依赖任何东西</strong>——没有数据库、没有框架。它是整个系统的心脏。</p>
+    </div>
+  </div>
+
+  <h2>仓储：让存取「像操作一个内存集合」</h2>
+  <p>那领域层不认识数据库，聚合怎么存？答案是<strong>仓储（Repository）</strong>。Evans 的处方：</p>
+  <blockquote>
+    For each type of aggregate that needs global access, create a service that can provide the
+    <strong>illusion of an in-memory collection</strong> of all objects of that aggregate's root type.
+    <span class="zh">（为每一类需要全局访问的聚合，建一个服务，营造出「一个装着该聚合根全部实例的内存集合」的错觉。）</span>
+    <cite>— DDD Reference，"Repositories"（第 17 页）</cite>
+  </blockquote>
+  <p>调用方看到的是 <code>repo.by_id(id)</code>、<code>repo.save(order)</code>，<strong>像在操作一个集合</strong>，
+  而不是 <code>SELECT ... JOIN ... WHERE</code>。两条纪律，都直接接着上一课：</p>
+  <ul>
+    <li><strong>一个聚合根，一个仓储</strong>。没有 <code>OrderLineRepository</code>——订单行在 <code>Order</code> 聚合<em>内部</em>，
+    只能经由根访问（第 5 课）。你存取的单位永远是<em>整个聚合</em>。</li>
+    <li><strong>仓储进出的是完整聚合，不是零散字段</strong>。Evans 警告过：绕过根、从聚合内部直接 new 出几个对象，
+    会<em>blindside 掉聚合根</em>，让它没法再守规则，实体于是沦为「data container」。这正是第 5 课那个泄漏 getter 的持久化版本。</li>
+  </ul>
+
+  <h2>C++：接口在领域层，实现在基础设施层</h2>
+  <p>「依赖朝里指」翻译成 C++，就是一个再熟悉不过的东西——<strong>纯虚接口（port）声明在领域层，具体实现（adapter）放在基础设施层</strong>：</p>
+
+  <pre><code>// ===== DOMAIN LAYER =====  (depends on NOTHING below)
+class OrderRepository {                     // the PORT — an abstract interface
+ public:
+  virtual ~OrderRepository() = default;
+  virtual std::optional&lt;Order&gt; by_id(OrderId) const = 0;   // collection illusion
+  virtual void save(const Order&amp;) = 0;
+};
+
+// ===== INFRASTRUCTURE LAYER =====  (depends on the domain, implements its port)
+class SqlOrderRepository : public OrderRepository {   // the ADAPTER
+  // ... this is the ONLY place that #includes &lt;pqxx&gt; / &lt;sqlite3.h&gt; ...
+  std::optional&lt;Order&gt; by_id(OrderId) const override;  // translate rows -&gt; Order
+  void save(const Order&amp;) override;                    // translate Order -&gt; rows
+};</code></pre>
+
+  <div class="card">
+    <p><strong>在 C++ 里，「分层有没有塌」是一个看得见、grep 得到的事实——就看一行 <code>#include</code>。</strong>
+    领域层的头文件里一旦出现 <code>#include &lt;sqlite3.h&gt;</code>，依赖的箭头就指反了，分层当场塌掉。
+    Java 把一切都摊在 classpath 上，这个违规是隐形的；C++ 的物理依赖让它无所遁形——
+    你为了编译速度斤斤计较的那些 include 卫生，恰好就是分层架构的体检项。</p>
+  </div>
+
+  <h2>那 <code>confirm → 保存 → 发布</code> 住哪层？答案：应用层</h2>
+  <p>这就是上一课留的问题。编排既不属于领域层（它不是业务规则），也不属于基础设施层（它不碰具体技术）。
+  它是<strong>应用层</strong>的活——一段薄薄的、只依赖<em>抽象</em>的协调代码：</p>
+
+  <pre><code>// ===== APPLICATION LAYER =====  (orchestration only, NO business rules)
+class ConfirmOrderService {
+ public:
+  ConfirmOrderService(OrderRepository&amp; repo, EventPublisher&amp; bus)  // depends on
+      : repo_(repo), bus_(bus) {}                                   // ABSTRACTIONS
+
+  void execute(OrderId id) {
+    Order order = repo_.by_id(id).value();      // 1. load the whole aggregate
+    order.confirm();                            // 2. run the domain rule (in Order)
+    repo_.save(order);                          // 3. persist the new state...
+    for (const auto&amp; e : order.pull_events())   // 4. ...then announce the facts
+      bus_.publish(e);
+  }
+ private:
+  OrderRepository&amp; repo_;   // never names SqlOrderRepository — only the port
+  EventPublisher&amp;  bus_;
+};</code></pre>
+
+  <p>注意 <code>ConfirmOrderService</code> <strong>从头到尾没提过任何具体实现</strong>——它只认 <code>OrderRepository&amp;</code> 和 <code>EventPublisher&amp;</code> 两个抽象。
+  到底用 SQL 实现还是内存实现，是在<strong>组装根（composition root，通常就是 <code>main</code>）</strong>里才拍板、才接线的。
+  这带来一个立竿见影的红利：<strong>整个领域层和应用层，不需要数据库、不需要真的消息总线就能测</strong>——给它塞两个假的实现即可。</p>
+
+  <div class="card">
+    <p><strong>本课代码全部真编译过。</strong><code>code/lesson7_check.cc</code>，clang 17 / <code>-std=c++20 -Wall -Wextra</code> 零告警。
+    它把三层堆在一个文件里（读的时候当三层看），断言了：应用服务在<strong>零数据库、零真实总线</strong>下跑通（依赖朝里的可测性红利）、
+    存进去能原样取回（仓储的集合错觉）、编排产出的事件到达了总线。
+    还有一条<strong>用绿色断言证明的坏事</strong>——见下。跑法见 <a href="../code/README.md">code/README.md</a>。</p>
+  </div>
+
+  <h2>把上一课的伏笔收掉：为什么需要发件箱</h2>
+  <p>上一课你问过「事件发出去、订阅方失败了怎么办」。现在你看到了更根本的裂缝：
+  <strong><code>save()</code> 和 <code>publish()</code> 是两次独立的写入</strong>（一次写库，一次写总线）。中间进程一崩，两边就对不上——而且<em>没有任何一种先后顺序是安全的</em>：</p>
+  <div class="compare">
+    <figure>
+      <figcaption class="bad-label">✗ 先发布，再保存</figcaption>
+      <pre><code>bus.publish(OrderConfirmed{...});  // 下游扣了库存
+db.save(order);   // 💥 崩了 —— 订单其实没确认
+// 库存扣了，订单却是「未确认」。对不上。</code></pre>
+    </figure>
+    <figure>
+      <figcaption class="bad-label">✗ 先保存，再发布</figcaption>
+      <pre><code>db.save(order);   // 订单已确认
+bus.publish(...); // 💥 崩了 —— 没人知道
+// 订单确认了，库存却没扣。还是对不上。
+// （这就是第 6 课那个「忘记 publish」）</code></pre>
+    </figure>
+  </div>
+  <p>本课验证代码用一条绿色断言把左边这个坑演示了出来：事件<em>发了</em>，可 <code>save</code> 崩在提交前，
+  重新加载订单竟然是「未确认」——下游为一件<strong>并不持久的事实</strong>动了手，全程无人报错。</p>
+  <div class="card" style="border-color:var(--accent)">
+    <p style="margin:0"><strong>解法方向：发件箱（Outbox）。</strong>把事件和聚合状态写进<em>同一个事务</em>（事件先落进一张 outbox 表），
+    事务提交后，再由一个后台进程可靠地把 outbox 里的事件投递出去。两次写变成一次写 + 一次可靠投递，裂缝就消失了。
+    这属于下一步的实现细节，这里先埋这个名字——你已经能看懂它要解决的到底是什么问题了。</p>
+  </div>
+
+  <h2>练一练：这段代码/职责该住哪一层</h2>
+  <p><strong>场景：</strong>你的生鲜电商，销售上下文。每一项：领域层、应用层，还是基础设施层？</p>
+  <div id="sort"></div>
+
+  <h2>试一试</h2>
+  <div id="quiz"></div>
+
+  <h2>主推读物</h2>
+  <p>本课首选延伸阅读：Alistair Cockburn 的
+  <a href="https://alistair.cockburn.us/hexagonal-architecture/"><strong>Hexagonal Architecture（Ports &amp; Adapters）</strong></a>——
+  它是「依赖朝里指」这个思想最经典、最一般化的表述：领域在中心，外面全是可插拔的适配器（数据库、UI、消息总线都是），
+  通过端口（就是你这一课写的纯虚接口）连接。你这一课的 <code>OrderRepository</code> 是端口，<code>SqlOrderRepository</code> 是适配器，
+  <code>main</code> 是组装根——读完这篇，你会发现自己已经在用六边形架构了。
+  一手定义见 <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a> 第 10 页（分层）与第 17 页（仓储），本课引文都出自这两页。</p>
+
+  <footer class="lesson-footer">
+    <p><strong>做完告诉我：你答错了哪几道、当时选的是哪个</strong>（全对就说「全对」）。
+    本课三个计分区——课首<em>回顾检查</em>、中段<em>练一练</em>、课末<em>试一试</em>，每个做完底部会弹一行「得分：X / N」。
+    我要的是错题（比总分信息量大），按它决定下一课难度。</p>
+    <p><strong>有不清楚的？</strong>问我。这一课常见的卡点：
+    「应用层和领域层到底怎么分？」（——一句话：<em>有 if/规则的算领域，只有『先做A再做B』的算应用</em>。折扣怎么算是领域的，「取出来→算一下→存回去」是应用的）
+    「仓储要不要支持复杂查询、分页、报表？」（——聚合的存取用仓储；纯读的报表/列表另说，别硬塞进领域模型，这条线以后细讲）
+    「接口都放领域层，具体实现放基础设施，不就是依赖倒置吗？」（——正是。你已经在用 SOLID 的 D 和六边形架构了）</p>
+    <p><strong>下一课预告：上下文映射与防腐层（Context Mapping &amp; Anticorruption Layer）</strong>——
+    镜头再拉远一层，回到战略。你之前问过的「两个上下文都要 Customer，字段要抄两遍吗？」终于到了回答的时候：
+    上下文之间怎么协作、怎么翻译，以及怎么用一层「防腐层」挡住上游烂模型的污染——这一课的<code>OrderRepository</code>其实已经是防腐层的雏形了。</p>
+  </footer>
+</article>
+
+<script src="../assets/categorize.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz(document.getElementById("review"), [
+  {
+    stem: "同一个概念「书」，在书店的『图书目录』上下文里由属性描述（书名、作者、ISBN），在图书馆的『馆藏』上下文里却要逐本追踪（借出、归还、条码）。这说明了什么？",
+    options: [
+      "是实体还是值对象，取决于所在的限界上下文",
+      "书在任何系统里都应该建成实体",
+      "只要有唯一的 ISBN 就一定是值对象",
+      "图书馆的建模一定比目录更复杂"
+    ],
+    answer: 0,
+    explain: "同一个「书」，在目录里你只关心它的属性（两本同样的《DDD》就是同一种书）→ 值对象；在馆藏里你要追踪每一本的生命周期（这一本被谁借走了）→ 实体。分类不是概念固有的，是你站在哪个上下文里、关不关心「是哪一个」决定的。这正是你上一课栽的那个「永远」——没有概念永远是值对象或永远是实体。选项 B、C 都犯了「绝对化」的同一个错。这条『看上下文』的规律，是战略（限界上下文）和战术（实体/值对象）咬合的地方，也是你以后评审设计时最锋利的一问：「你这是在哪个上下文里说的？」"
+  },
+  {
+    stem: "订单要记录它属于哪个客户。为什么订单里存 CustomerId，而不是存整个 Customer 对象？（这一课你会看到它的延续）",
+    options: [
+      "客户是另一个聚合，跨聚合只用 id 引用",
+      "因为 Customer 对象太大，存 id 省内存",
+      "因为客户信息常变，存 id 能自动同步",
+      "因为 C++ 不允许类持有另一个类的对象"
+    ],
+    answer: 0,
+    explain: "跨聚合只用 id 引用（第 5 课）：客户和订单是两个独立的聚合，各自加载、各自保存、各自加锁。这一课你会看到它的直接延续——一个聚合根配一个仓储，你会有 OrderRepository 和 CustomerRepository 两个，各存各的；要用到客户，就拿 CustomerId 去 CustomerRepository 取。选项 B 是性能借口（不是建模理由），C 是幻想（存 id 不会自动同步任何东西），D 是错的 C++ 常识。"
+  }
+], {
+  perfect: "上下文相关性和跨聚合引用都稳了。可以进入分层了。",
+  imperfect: "先看答错那条的解释——尤其『看上下文』那条，这一课还会用到。"
+});
+
+renderCategorize(document.getElementById("sort"), {
+  perfect: "三层的职责边界你拎得很清——尤其没被那两个陷阱骗到。",
+  imperfect: "看答错那条：判据是『有业务规则→领域，只有编排→应用，碰具体技术→基础设施』。",
+  buckets: ["领域层", "应用层", "基础设施层"],
+  items: [
+    {
+      text: "「计算一张订单的应付总额，含满减和会员折扣规则。」",
+      bucket: 0,
+      explain: "领域层——这是本题的陷阱。它带着「服务」「计算」的味道，很多人一手就塞进应用层。但只要里面有业务规则（满减、折扣怎么算），它就是领域逻辑，属于聚合或领域服务。判据：有 if、有规则 → 领域层。应用层是不允许含业务规则的。"
+    },
+    {
+      text: "「OrderRepository 这个抽象接口的声明（纯虚函数，没有实现）。」",
+      bucket: 0,
+      explain: "领域层——这也常被猜成基础设施层，但恰恰相反。接口（端口）声明在领域层，因为是领域在规定「我需要一种能按 id 取、能保存订单的东西」；具体怎么实现（SQL/内存）才在基础设施层。这就是依赖倒置：领域层定义抽象，外层去实现它，于是依赖箭头朝里指。"
+    },
+    {
+      text: "「『取出订单 → 调 confirm() → 保存 → 发布事件』这一整段编排。」",
+      bucket: 1,
+      explain: "应用层。它不含任何业务规则（规则在 confirm() 里），只是把一个用例的步骤按顺序串起来，并协调仓储和发布器这些端口。这就是 ConfirmOrderService 干的事——薄薄一层胶水。"
+    },
+    {
+      text: "「决定这个用例的事务边界：整段要么全提交，要么全回滚。」",
+      bucket: 1,
+      explain: "应用层——但要小心别和第 5 课「聚合边界 = 事务边界」搞混，那是两回事。第 5 课说的是领域建模约束：一个事务最多改一个聚合，聚合规定了事务能覆盖的最大范围（属领域层）。这里说的是运行时——把 begin/commit 实际画在这个用例的哪几步外面，那是编排职责，属应用层。三层各司其职：领域层规定事务最多能多大（聚合），且本身根本不知道「事务」这个词的存在；应用层决定这次实际提交哪几步；基础设施层只提供 begin/commit 的机制。"
+    },
+    {
+      text: "「InMemoryOrderRepository：用一个 std::unordered_map 实现 by_id/save。」",
+      bucket: 2,
+      explain: "基础设施层。它是 OrderRepository 这个端口的一个具体适配器（adapter）。换成 SqlOrderRepository 也是同一层的事——两者可互换，上面两层一行都不用改。测试时就用这个内存实现，不碰真数据库。"
+    },
+    {
+      text: "「把 OrderConfirmed 事件真正塞进 Kafka 发出去。」",
+      bucket: 2,
+      explain: "基础设施层。EventPublisher 是领域层声明的端口，「怎么真的发到 Kafka」是它在基础设施层的实现。领域层只知道「有个 publish 能把事件发出去」，绝不认识 Kafka——否则领域层就 #include 了 Kafka 客户端，分层当场塌掉。"
+    }
+  ]
+});
+
+renderQuiz(document.getElementById("quiz"), [
+  {
+    stem: "分层架构的核心规则是什么？",
+    options: [
+      "每层只依赖它下面的层，领域层不依赖任何基础设施",
+      "界面层可以直接调用数据库层以提高性能",
+      "每一层的代码量应当大致相等",
+      "业务逻辑应尽量写进数据库的存储过程里"
+    ],
+    answer: 0,
+    explain: "依赖只朝里/朝下指：领域层坐最里面、谁都不依赖，越往外越依赖里面。Evans 原文：eliminate any dependency on infrastructure... depends only on the layers below。选项 B 正是 Evans 批的那种「改界面竟改掉业务规则」的耦合；D 是把业务逻辑赶出领域层、让模型沦为摆设，方向完全反了。"
+  },
+  {
+    stem: "「仓储（Repository）」给调用方营造的是什么错觉？",
+    options: [
+      "像在操作一个装着所有聚合的内存集合",
+      "像在直接手写 SQL 一样灵活",
+      "像每个字段都能被单独查询和修改",
+      "像数据永远不会真正落到磁盘上"
+    ],
+    answer: 0,
+    explain: "Evans 原文：the illusion of an in-memory collection。调用方看到的是 by_id / save，像操作集合，SQL 的复杂度被挡在仓储实现里。选项 C 恰恰是 Evans 警告的反面教材：绕过根去单独查改内部字段，会 blindside 掉聚合根、让它守不住规则，实体沦为 data container——这是第 5 课泄漏 getter 的持久化版本。"
+  },
+  {
+    stem: "为什么 OrderRepository 是领域层里的抽象接口，而它的 SQL 实现放在基础设施层？",
+    options: [
+      "让依赖朝里指：领域层不认识数据库，换实现不动领域代码",
+      "因为抽象接口比具体类运行得更快",
+      "因为 C++ 规定虚函数必须和实现分文件",
+      "因为基础设施层里不允许出现纯虚函数"
+    ],
+    answer: 0,
+    explain: "这就是依赖倒置（SOLID 的 D）：领域层定义它需要的抽象，基础设施层去实现，于是本该「领域→数据库」的依赖被倒过来成「数据库→领域」，箭头朝里。好处是领域层可以在没有数据库的情况下编译和测试，换 SQL/内存/Mongo 实现，上层一行不改。选项 B、C、D 都是编造的技术理由，与分层无关。"
+  },
+  {
+    stem: "在 C++ 里，判断「分层有没有塌」最直接的一个信号是什么？",
+    options: [
+      "领域层的头文件里有没有 #include 数据库/框架的头",
+      "领域层的类有没有用到 virtual 函数",
+      "源文件是不是放在了不同的目录",
+      "编译出来的二进制体积有没有变大"
+    ],
+    answer: 0,
+    explain: "依赖方向在 C++ 里是物理可见的：领域层的 .h 一旦 #include 了 <sqlite3.h> 或某框架头，依赖箭头就指反了，分层塌了——这是能 grep 出来的。Java 把一切摊在 classpath 上，这个违规反而隐形。选项 B 错：领域层用 virtual（比如声明仓储端口）非常正常；C、D 和分层无必然关系。"
+  },
+  {
+    stem: "交错考察：「保存聚合」和「发布事件」是两次独立写入，中间进程崩了会不一致。正确的解法方向是？",
+    options: [
+      "把事件与状态写进同一事务（发件箱），再可靠投递",
+      "只要先发布事件、再保存，就一定安全",
+      "只要先保存、再发布事件，就一定安全",
+      "把订单和库存合并成一个大聚合，一次事务搞定"
+    ],
+    answer: 0,
+    explain: "两次独立写入没有安全的先后顺序：先发布再保存，崩了→下游动了手但状态没持久；先保存再发布，崩了→状态持久了但没人知道（第 6 课的「忘记 publish」）。解法是发件箱：事件先落进和状态同一个事务里的 outbox 表，提交后由后台可靠投递。选项 D 是第 5 课的经典陷阱——把聚合画大来换强一致，代价是大锁烂并发，业务方从没要求过这条不变量。"
+  }
+]);
+</script>
+</body>
+</html>

@@ -15,6 +15,9 @@
   战术模式实现细节最全（示例为 Java，需翻译成 C++）。Use for: 聚合设计四原则、仓储、领域事件的实现参考。
 - [Martin Fowler bliki: Ubiquitous Language](https://martinfowler.com/bliki/UbiquitousLanguage.html) / [Bounded Context](https://martinfowler.com/bliki/BoundedContext.html) / [DDD Aggregate](https://martinfowler.com/bliki/DDD_Aggregate.html)
   单个概念的短小权威解释，适合课程内引用。Use for: 每课的延伸阅读。
+- [Alistair Cockburn: Hexagonal Architecture（Ports & Adapters）](https://alistair.cockburn.us/hexagonal-architecture/)
+  「依赖朝里指」最经典、最一般化的表述：领域在中心，数据库/UI/消息总线都是可插拔适配器，经端口（纯虚接口）连接。
+  Use for: 第 7 课分层/仓储的延伸；把 DDD 分层提升到架构层面的框架（对齐用户的架构师目标）。第 7 课已作主推读物。
 - [GitHub: awesome-ddd（heynickc）](https://github.com/heynickc/awesome-ddd)
   社区维护的 DDD/CQRS/ES 资源索引。Use for: 按需检索特定主题的文章与示例项目。
 
