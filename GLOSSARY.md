@@ -83,3 +83,11 @@ _判据_：领域专家会说「这件事很重要，我要知道它发生了」
 _Avoid_：**命令**（`ConfirmOrder` 是祈使、可被拒；`OrderConfirmed` 是既成事实——一字之差是分水岭）；系统/UI 事件（反映软件自身活动，不在领域里）；给每个 setter 都发事件。
 _C++_：它就是个**值对象**（`= default` 相等、可自由拷贝）；一个聚合的事件集用 `std::variant`（封闭和类型）+ `std::visit` 派发。携 id 不携引用——放指针 = 开后门反向篡改聚合。
 > 出处（原文）：*Something happened that domain experts care about.* / *Model information about activity in the domain as a series of discrete events. Represent each event as a domain object.* / *Domain events are ordinarily immutable, as they are a record of something in the past.* — DDD Reference, "Domain Events"（标 `*`：蓝皮书之后补入模式语言的三个模式之一）
+
+**领域服务（Domain Service）**：
+领域中一段**重要的过程或变换**，但**不自然属于**任何一个实体或值对象时，作为模型里独立声明的服务操作；名字进入统一语言，通常**无状态**。
+_判据_：硬塞进某个实体会扭曲其定义，或逼你造出无意义的人造对象 → 领域服务。**默认仍是聚合根方法**——领域服务是例外出口，不是默认口袋。
+_对照_：**应用服务**只做用例编排（取 / 调 / 存 / 发），**不含业务规则**；名字带 Service 不决定它是哪一种——看里面有没有业务 if。
+_Avoid_：① `Wallet::transfer_to(other)`（过程挂错对象）；② 把币种/余额/满减规则写进应用服务（贫血领域）；③ 什么逻辑都往领域服务里扔。
+_C++_：无成员的函数对象或自由函数即可；更好的形状是应用服务取聚合、交给领域服务、再 save——领域服务尽量不自己拿仓储（对持久化无知，可零基础设施测）。见 `code/lesson9_check.cc`、[C++ 写法](reference/cpp-tactical-patterns.html)。
+> 出处（原文）：*Sometimes, it just isn’t a thing. […] When a significant process or transformation in the domain is not a natural responsibility of an entity or value object, add an operation to the model as a standalone interface declared as a service. […] Give the service a name, which also becomes part of the ubiquitous language.* — DDD Reference, "Services"

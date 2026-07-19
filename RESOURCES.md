@@ -22,6 +22,12 @@
   DDD 社区维护的上下文映射速查表：一页图讲清全部关系模式（防腐层/遵奉者/共享内核/客户供应商/开放主机……）与上下游标记，配 Miro 模板 + [配套小测](https://github.com/ddd-crew/context-mapping-quiz)。Use for: 第 8 课主推读物；练「给上下文连线贴关系标签」这个评审技能。已核实（2026-07-19）。
 - [GitHub: awesome-ddd（heynickc）](https://github.com/heynickc/awesome-ddd)
   社区维护的 DDD/CQRS/ES 资源索引。Use for: 按需检索特定主题的文章与示例项目。
+- [EventStorming.com — Alberto Brandolini](https://www.eventstorming.com/) ★ 事件风暴官方站
+  发明者维护：Starter Kit、书与培训入口。Use for: 第 10 课主推；工作坊流程与便签语法的权威来源。
+- [Book: _Introducing EventStorming_ — Alberto Brandolini（Leanpub）](https://www.eventstorming.com/book/)
+  官方书（持续更新）。Big Picture 部分最完整。Use for: 事件风暴深度阅读；Software Design 级细节仍在写。
+- [Medium: Collaborative Process Modelling with EventStorming — Brandolini](https://medium.com/@ziobrando/collaborative-process-modelling-with-eventstorming-17ed363650c0)
+  发明者本人讲 Process Modelling 语法与工作坊形态。Use for: 第 10 课引文与「命令/事件/策略」色块语法。
 
 ## Wisdom (Communities)
 

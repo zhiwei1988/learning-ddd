@@ -28,6 +28,10 @@ c++ -std=c++20 -Wall -Wextra -o /tmp/lesson7_check lesson7_check.cc && /tmp/less
 # 第 8 课：防腐层（ACL）作为端口/适配器 / 翻译上游烂模型 / 遵奉者路线的污染泄漏
 c++ -std=c++20 -Wall -Wextra -o /tmp/lesson8_check lesson8_check.cc && /tmp/lesson8_check \
   && echo "ALL CLAIMS VERIFIED"
+
+# 第 9 课：领域服务（跨钱包转账）/ 薄应用服务编排 / 两种坏味道的绿色断言
+c++ -std=c++20 -Wall -Wextra -o /tmp/lesson9_check lesson9_check.cc && /tmp/lesson9_check \
+  && echo "ALL CLAIMS VERIFIED"
 ```
 
 ## 文件
@@ -62,6 +66,11 @@ c++ -std=c++20 -Wall -Wextra -o /tmp/lesson8_check lesson8_check.cc && /tmp/less
   又一条**用绿色断言证明的坏事**：若走遵奉者（Conformist）的路直接传 `CrmContactRecord`，
   哨兵 `""` 与没文档的 `status_flag=9` 就在原始记录里明晃晃存在（`assert(raw.ctry_cd == "")` 通过）——
   而防腐层的产物里它俩一个变成诚实缺席、一个根本不在模型里。同样输入，污染被挡在边界。
+- `lesson9_check.cc` — 验证 [第 9 课](../lessons/0009-domain-service.html) 的全部断言：
+  **领域服务** `TransferFunds` 承载「不自然属于某一个 Wallet」的转账过程（币种/自转校验 + 调用双方的 debit/credit）；
+  薄应用服务只做取/调/存；领域服务可在**零仓储**下单独测。
+  两条**用绿色断言证明的坏事**：① `Wallet::transfer_to_BAD`「能跑」但扭曲模型；
+  ② `AnemicTransferAppService` 钱也能转走——规则却泄漏在应用层（贫血领域）。
 
 已验证：Apple clang 17.0.0 / arm64 / `-std=c++20`，零告警通过、断言全绿。
 

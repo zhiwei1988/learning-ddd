@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 9 课 · 领域服务：这段逻辑到底住哪</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<article>
+  <p class="kicker">第 9 课 · 战术工具箱收官 · 约 14 分钟</p>
+  <h1>领域服务：这段逻辑到底住哪</h1>
+  <p class="lede">实体、值对象、聚合、领域事件、仓储——战术地图上只剩最后一块。
+  有些业务过程<em>怎么看都不像某个对象的职责</em>。硬塞进实体会扭模型，塞进应用层会掏空领域。
+  这一课只练一件事：<strong>拿到一段逻辑，立刻判断它该住聚合、领域服务，还是应用服务。</strong></p>
+
+  <div class="card">
+    <p><strong>你在地图上的位置：</strong>战术设计的收官课。补齐后，战略 + 战术工具箱第一次<strong>集齐</strong>——
+    之后就可以进入 mission 正题：真实建模与设计评审。随时打开
+    <a href="../reference/ddd-map.html">DDD 全景地图</a> 定位；C++ 写法见
+    <a href="../reference/cpp-tactical-patterns.html">战术模式速查表</a>。</p>
+  </div>
+
+  <h2>先热身：回顾检查</h2>
+  <p>两道题回扣你已经拿稳的肌肉：<a href="0007-repository-layered-architecture.html">第 7 课</a>的分层，
+  和<a href="0008-context-map-anticorruption-layer.html">第 8 课</a>的防腐层。凭记忆作答——本课会立刻用到它们。</p>
+  <div id="review"></div>
+
+  <h2>有时候，它根本不是「一个东西」</h2>
+  <p>生鲜电商里，用户要把余额从<strong>购物钱包</strong>转到<strong>退款钱包</strong>。
+  两个都是 <code>Wallet</code> 聚合——各自守「余额不能为负」。那「转账」这个过程，该写在谁身上？</p>
+  <ul>
+    <li>写在转出钱包上？<code>from.transfer_to(to, amount)</code>——转出方凭什么拥有「转入方怎么记账」的知识？</li>
+    <li>写在转入钱包上？对称地别扭。</li>
+    <li>抽一个假实体 <code>Transfer</code> 只为了挂这个方法？——Evans 说这是<strong>无意义的人造对象</strong>。</li>
+  </ul>
+  <blockquote>
+    Sometimes, it just isn’t a thing. Some concepts from the domain aren’t natural to model as objects.
+    Forcing the required domain functionality to be the responsibility of an entity or value either
+    <strong>distorts the definition</strong> of a model-based object or adds <strong>meaningless artificial objects</strong>.
+    <span class="zh">（有时候，它根本不是一个「东西」。领域里有些概念并不适合建模成对象。
+    硬把所需的领域功能塞给某个实体或值对象，要么<strong>扭曲</strong>了对象的定义，要么会造出<strong>毫无意义的人造对象</strong>。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Services"（第 14 页）</cite>
+  </blockquote>
+  <p>处方：</p>
+  <blockquote>
+    When a significant process or transformation in the domain is not a natural responsibility of
+    an entity or value object, add an operation to the model as a <strong>standalone interface
+    declared as a service</strong>. … Give the service a name, which also becomes part of the
+    ubiquitous language.
+    <span class="zh">（当领域中一个重要的过程或变换，并不自然地属于某个实体或值对象时，
+    就把它作为模型里的一个操作，用<strong>独立声明的服务接口</strong>加上去。……给它起一个名字——
+    这个名字也成为统一语言的一部分。）</span>
+    <cite>— 同上</cite>
+  </blockquote>
+  <p>这个独立操作，就叫<strong>领域服务（Domain Service）</strong>。它住在<strong>领域层</strong>，
+  名字来自统一语言（<code>TransferFunds</code>，不是 <code>WalletHelper</code>），通常<strong>无状态</strong>——
+  自己不存余额、不持 id，只协调已经存在的领域对象。</p>
+
+  <h2>三种「服务」别混——这是本课的主轴</h2>
+  <p>你在第 7 课已经写过 <code>ConfirmOrderService</code>。名字里有 Service，但它是<strong>应用服务</strong>：
+  取出 → 调用 → 保存 → 发布，<em>不含业务规则</em>。领域服务长得很像，职责完全不同：</p>
+
+  <div class="tbl-wrap">
+  <table class="rule-table" style="width:100%;border-collapse:collapse;margin:1.25rem 0;font-size:0.92rem">
+    <thead>
+      <tr>
+        <th style="border:1px solid var(--rule);padding:0.5rem 0.7rem;background:var(--card-bg);text-align:left">问自己</th>
+        <th style="border:1px solid var(--rule);padding:0.5rem 0.7rem;background:var(--card-bg);text-align:left">住哪</th>
+        <th style="border:1px solid var(--rule);padding:0.5rem 0.7rem;background:var(--card-bg);text-align:left">例子</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem">自然属于<strong>一个</strong>聚合的规则？</td>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem"><strong>聚合根上的方法</strong></td>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem"><code>Order::confirm()</code>、<code>Wallet::debit()</code></td>
+      </tr>
+      <tr>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem">重要的领域过程，但<strong>不自然属于</strong>任何一个对象？</td>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem"><strong>领域服务</strong></td>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem"><code>TransferFunds</code>（跨两个钱包）</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem">用例编排：取、调、存、发——<strong>没有 if 业务规则</strong>？</td>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem"><strong>应用服务</strong></td>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem"><code>ConfirmOrderService</code>、<code>TransferFundsAppService</code></td>
+      </tr>
+      <tr>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem">真碰数据库 / Kafka / HTTP？</td>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem"><strong>基础设施适配器</strong></td>
+        <td style="border:1px solid var(--rule);padding:0.5rem 0.7rem"><code>SqlWalletRepository</code></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="card">
+    <p><strong>一句话判据：</strong>有业务规则（货币是否一致、能不能转给自己、满减怎么算）→ 领域层
+    （聚合方法 <em>或</em> 领域服务）。只有「取出 / 保存 / 发布 / 开事务」→ 应用层。
+    名字里有 Service <em>不</em>决定它是哪一种——看里面有没有规则。</p>
+  </div>
+
+  <h2>C++：领域服务就是无状态的领域操作</h2>
+  <p>现代 C++ 里，领域服务常常是一个<strong>无成员的函数对象</strong>（或自由函数）。
+  每个钱包仍只守自己的不变量；跨钱包的过程单独命名：</p>
+
+  <div class="compare">
+    <figure>
+      <figcaption class="bad-label">✗ 硬塞进实体 / 泄漏进应用层</figcaption>
+      <pre><code>// Distorts Wallet — transfer isn't "its" job
+void Wallet::transfer_to(Wallet&amp; other,
+                         const Money&amp; amt);
+
+// Or: rules live in the application layer
+// (anemic domain — Wallet is just a bag)
+void App::execute(...) {
+  if (from.balance() &lt; amt) throw ...;
+  if (from.currency() != to.currency()) ...
+  from.debit(amt);
+  to.credit(amt);
+}</code></pre>
+    </figure>
+    <figure>
+      <figcaption class="good-label">✓ 领域服务 + 薄应用服务</figcaption>
+      <pre><code>// DOMAIN — named in the UL, stateless
+struct TransferFunds {
+  void operator()(Wallet&amp; from, Wallet&amp; to,
+                  const Money&amp; amount) const {
+    if (from.id() == to.id())
+      throw std::domain_error{"..."};
+    // currency checks, then:
+    from.debit(amount);   // each root
+    to.credit(amount);    // guards itself
+  }
+};
+
+// APPLICATION — load / call / save only
+void TransferFundsAppService::execute(...) {
+  auto from = repo.by_id(from_id).value();
+  auto to   = repo.by_id(to_id).value();
+  TransferFunds{}(from, to, amount);
+  repo.save(from);
+  repo.save(to);
+}</code></pre>
+    </figure>
+  </div>
+
+  <div class="card">
+    <p><strong>本课代码全部真编译过。</strong><code>code/lesson9_check.cc</code>，clang 17 /
+    <code>-std=c++20 -Wall -Wextra</code> 零告警。断言了：领域服务 + 薄应用服务跑通转账、
+    超额被拒且余额不变、领域服务可在<strong>零仓储</strong>下单独测。
+    还有两条<strong>用绿色断言证明的坏事</strong>：① <code>Wallet::transfer_to_BAD</code>「能跑」但扭曲了模型；
+    ② 贫血应用服务「钱也能转走」——规则却住错了层。跑法见
+    <a href="../code/README.md">code/README.md</a>。</p>
+  </div>
+
+  <h2>和「一个事务一个聚合」怎么共存？</h2>
+  <p>第 5 课铁律还在：一个事务 ideally 只改一个聚合。领域服务<em>不</em>给你豁免权——
+  它只是说「这段规则不该挂在某一个根上」。真实系统里，跨钱包转账常见两条路：</p>
+  <ul>
+    <li><strong>教学/同库简化</strong>（本课代码）：一次用例里改两个钱包，接受强一致（小系统可以）。</li>
+    <li><strong>严肃的聚合纪律</strong>：先 <code>debit</code> 一个钱包并发布 <code>FundsDebited</code>，
+    另一个上下文/聚合异步 <code>credit</code>（最终一致，接第 6 课领域事件）。</li>
+  </ul>
+  <p>评审时别被「反正有个 Domain Service」骗过——先问：这里改了几个聚合？一致性怎么保证？</p>
+
+  <h2>练一练：这段逻辑住哪</h2>
+  <p>把每段描述归到正确的一层。本练习的陷阱是：名字带「服务」、或「看起来像编排」的东西，
+  其实可能含业务规则。</p>
+  <div id="sort"></div>
+
+  <h2>试一试</h2>
+  <div id="quiz"></div>
+
+  <h2>主推读物</h2>
+  <p>本课首选：<a href="../reference/DDD_Reference_2015-03.pdf"><strong>DDD Reference · Services（第 14 页）</strong></a>——
+  整课引文都出自这里，两段「Therefore」读完就够用。想看实现层面的辨析（领域服务 vs 应用服务），
+  翻 Vaughn Vernon《Implementing Domain-Driven Design》里 Services 一章；
+  分层总纲仍是你第 7 课读过的
+  <a href="https://alistair.cockburn.us/hexagonal-architecture/">Hexagonal Architecture</a>。</p>
+
+  <footer class="lesson-footer">
+    <p><strong>做完告诉我：你答错了哪几道、当时选的是哪个</strong>（全对就说「全对」）。
+    本课三个计分区——课首<em>回顾检查</em>、中段<em>练一练</em>、课末<em>试一试</em>，每个做完底部会弹一行「得分：X / N」。
+    我要的是错题（比总分信息量大），按它决定下一课难度。</p>
+    <p><strong>有不清楚的？</strong>问我。这一课常见的卡点：
+    「领域服务和应用服务不都叫 Service 吗？」（——看有没有业务规则，不看名字）
+    「那岂不是什么都往领域服务里扔？」（——<strong>默认仍是聚合方法</strong>；只有「不自然属于任何一个」才升级）
+    「领域服务可以依赖仓储吗？」（——更好的形状是：应用服务取聚合，再交给领域服务；让领域服务保持对持久化无知）</p>
+    <p><strong>下一课预告：事件风暴（Event Storming）</strong>——
+    战术工具箱已集齐。下一步对齐 mission：用一张墙（或 Miro）和领域专家一起，
+    把真实业务跑成「命令 → 聚合 → 事件」的时间线，练一次<strong>主导领域建模</strong>。</p>
+  </footer>
+</article>
+
+<script src="../assets/categorize.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz(document.getElementById("review"), [
+  {
+    stem: "ConfirmOrderService::execute 做「取出订单 → order.confirm() → 保存 → 发布」。业务规则「已确认的订单不能再确认」实际写在哪里？",
+    options: [
+      "写在 Order::confirm() 里——应用服务只负责编排",
+      "写在 ConfirmOrderService 里——因为它名字带 Service",
+      "写在 SqlOrderRepository 里——保存时顺手校验",
+      "写在 EventPublisher 里——发布前再拦一道"
+    ],
+    answer: 0,
+    explain: "写在 Order::confirm()。应用服务是薄编排，业务规则住在聚合根上——这是第 7 课的主轴。本课要加的只是：有些规则<em>也不</em>自然属于某一个根，那时才请领域服务上场。选项 B 是「看见 Service 就往应用层塞规则」的贫血病，本课要专门治。"
+  },
+  {
+    stem: "下游物流面对上游烂 CRM，建了一层把 CRM 字段译成自己的 Consignee。这是什么？",
+    options: [
+      "防腐层——下游自保，用自己的模型措辞隔离上游",
+      "遵奉者——下游放弃自己的模型，盲从上游结构",
+      "共享内核——两队显式共用一小块领域代码",
+      "开放主机——上游对外发布一套统一集成协议"
+    ],
+    answer: 0,
+    explain: "防腐层。关键词是「译成自己的 Consignee / 隔离上游」——自保，不是认命。遵奉者是同处境的另一条路（盲从）。本课马上会用同一把『端口在领域层』的尺子：领域服务也住在领域层，只是它协调的是<em>自己模型内部</em>的对象，不是翻译外部模型。"
+  }
+], {
+  perfect: "分层和防腐层都还在手感里。下面用同一把尺子切『聚合方法 / 领域服务 / 应用服务』。",
+  imperfect: "先看错题解释。本课全程在『规则住领域、编排住应用』上加一刀——这刀切不准，后面会混。"
+});
+
+renderCategorize(document.getElementById("sort"), {
+  perfect: "『这段逻辑住哪』切得很干净——尤其没被『名字带 Service』和『看起来像编排』骗到。",
+  imperfect: "看答错那条：有 if/业务规则 → 领域（聚合方法或领域服务）；只有取存发 → 应用；碰技术 → 基础设施。",
+  buckets: ["聚合方法", "领域服务", "应用服务", "基础设施"],
+  items: [
+    {
+      text: "「已确认的订单不能再 confirm；确认时记下 OrderConfirmed 事件。」",
+      bucket: 0,
+      explain: "聚合方法。规则自然属于 Order 这一个根——状态变了、事件也由它产生。这是默认落点，别一上来就建领域服务。"
+    },
+    {
+      text: "「把金额从购物钱包转到退款钱包：校验不能转给自己、币种一致，再 debit 一方、credit 另一方。」",
+      bucket: 1,
+      explain: "领域服务。过程重要，但不自然属于某一个 Wallet——硬挂在 from 或 to 上都会扭曲对象。TransferFunds 是统一语言里的名字。"
+    },
+    {
+      text: "「用例：按两个钱包 id 取出聚合 → 调用转账 → 把两个聚合存回去。」",
+      bucket: 2,
+      explain: "应用服务。全程没有业务 if，只做取/调/存。规则在 TransferFunds 里；应用层不该重复写『余额够不够』。"
+    },
+    {
+      text: "「用 libpqxx 执行 UPDATE wallets SET balance_cents = $1 WHERE id = $2。」",
+      bucket: 3,
+      explain: "基础设施。这是仓储适配器的活——领域层和应用层都不该 #include 数据库头文件。"
+    },
+    {
+      text: "「ConfirmOrderService::execute 里写：if (order.total() >= 100) 减 10 块；再 order.confirm()。」",
+      bucket: 1,
+      explain: "领域服务（或本可放进定价相关的领域对象）——陷阱题。它写在『应用服务』类里，但满减是业务规则，不属于编排。正确姿态：规则挪回领域层；应用服务只负责调用。若满减策略跨多个对象、又不自然属于 Order，就用领域服务承载。"
+    },
+    {
+      text: "「在 Wallet 类上加 transfer_to(Wallet& other, Money)，让转出钱包直接改对方余额。」",
+      bucket: 1,
+      explain: "仍应是领域服务——另一道陷阱。你『写在了聚合上』，但按 Evans，这扭曲了 Wallet 的定义（它不该拥有另一个聚合怎么记账的知识）。归类看的是<em>逻辑该住哪</em>，不是你现在错误地写在了哪。"
+    }
+  ]
+});
+
+renderQuiz(document.getElementById("quiz"), [
+  {
+    stem: "Evans 引入领域服务的直接理由是？",
+    options: [
+      "有些重要过程不自然属于任何实体或值对象",
+      "为了让每个类都有一个配套的 Service 类",
+      "领域服务专门负责访问数据库和消息总线",
+      "用领域服务取代聚合，简化事务边界设计"
+    ],
+    answer: 0,
+    explain: "原文：not a natural responsibility of an entity or value object。不是为了凑 Service 类（B），不是干基础设施的活（C），更不是取代聚合（D）。默认仍是聚合方法；领域服务是例外出口。"
+  },
+  {
+    stem: "领域服务与应用服务最关键的分界是？",
+    options: [
+      "领域服务含业务规则；应用服务只做用例编排",
+      "领域服务必须是类；应用服务必须是函数",
+      "领域服务在基础设施层；应用服务在领域层",
+      "领域服务负责发 Kafka；应用服务负责写 SQL"
+    ],
+    answer: 0,
+    explain: "看有没有业务规则。名字、是类还是函数、都不决定分层。C/D 把两层都放反了：领域服务在领域层；Kafka/SQL 是基础设施。"
+  },
+  {
+    stem: "Wallet::transfer_to(other, amount) 为什么通常是坏味道？",
+    options: [
+      "转账过程不自然属于某一个钱包，会扭曲模型",
+      "C++ 里聚合之间绝对禁止互相调用任何方法",
+      "转账只能用自由函数，写成成员函数就无法编译",
+      "因为 Wallet 是值对象，不能拥有任何行为"
+    ],
+    answer: 0,
+    explain: "Evans：forcing … distorts the definition。能编译、能跑（lesson9_check 里绿色断言证明了坏事），但模型说错了话。B 过绝对；C 是语法胡说；D 错——Wallet 是实体/聚合，debit/credit 恰恰该在它身上。"
+  },
+  {
+    stem: "更好的形状是：应用服务取两个 Wallet，交给 TransferFunds，再 save。为什么领域服务最好别自己拿仓储？",
+    options: [
+      "让领域服务保持对持久化无知，规则可在零基础设施下测",
+      "因为仓储接口只能被应用服务这一种类型调用",
+      "因为领域服务禁止接收任何引用或指针参数",
+      "因为一个领域服务在语言里最多只能碰一个聚合"
+    ],
+    answer: 0,
+    explain: "和第 7 课同一红利：依赖朝里、领域可在零 DB 下测。仓储是端口，技术上领域服务『能』依赖它，但会把『取存』和『规则』缠在一起，测试与职责都变糊。B/C/D 都不是 DDD 的硬规则。"
+  },
+  {
+    stem: "交错考察：某 PR 把满减规则写进 ConfirmOrderService，Wallet 只剩 getter/setter。你的评审意见？",
+    options: [
+      "贫血领域——规则应回到领域层（聚合方法或领域服务）",
+      "正确分层——凡是叫 Service 的都应集中全部规则",
+      "正确分层——应用层本来就该容纳所有业务 if",
+      "无关分层——只要测试覆盖率够高就可以合并"
+    ],
+    answer: 0,
+    explain: "经典贫血领域模型（anemic domain）：对象变成数据袋，规则流进应用层『上帝服务』。对齐 mission 的评审技能——先问『这段 if 是业务规则还是编排』。B/C 正好是反模式的自我辩护；D 用测试掩盖结构问题。"
+  }
+]);
+</script>
+</body>
+</html>

@@ -41,7 +41,7 @@
         <dt>子域 <span class="en">Subdomain：Core / Supporting / Generic</span></dt>
         <dd>业务本身的分块（问题空间）。核心子域是你赢得竞争的地方，设计精力优先砸在这里；通用子域买、支撑子域简单做。→ <a href="../lessons/0003-subdomains.html">第 3 课</a></dd>
         <dt>上下文映射 <span class="en">Context Mapping</span></dt>
-        <dd>刻画限界上下文之间的协作关系（合作、防腐层、跟随者……）。</dd>
+        <dd>刻画限界上下文之间的协作关系（合作、防腐层、遵奉者……）。→ <a href="../lessons/0008-context-map-anticorruption-layer.html">第 8 课</a></dd>
       </dl>
     </div>
     <div class="card">
@@ -54,13 +54,13 @@
         <dt>值对象 <span class="en">Value Object</span></dt>
         <dd>由属性值定义、无标识、不可变的对象：金额、地址、日期区间。→ <a href="../lessons/0004-entity-vs-value-object.html">第 4 课</a> · <a href="cpp-tactical-patterns.html">C++ 写法速查</a></dd>
         <dt>聚合 <span class="en">Aggregate</span></dt>
-        <dd>一簇实体/值对象组成的一致性单元，只能通过聚合根访问和修改。</dd>
+        <dd>一簇实体/值对象组成的一致性单元，只能通过聚合根访问和修改。→ <a href="../lessons/0005-aggregate.html">第 5 课</a></dd>
         <dt>仓储 <span class="en">Repository</span></dt>
         <dd>让聚合的存取看起来像操作一个内存集合，隔离持久化细节。一个聚合根配一个仓储；接口在领域层，实现在基础设施层。→ <a href="../lessons/0007-repository-layered-architecture.html">第 7 课</a></dd>
         <dt>领域事件 <span class="en">Domain Event</span></dt>
         <dd>领域中已经发生、业务方关心的事实：OrderConfirmed。过去式、不可变（值对象），携 id 不携引用，由根产生，跨边界靠它异步协作。→ <a href="../lessons/0006-domain-event.html">第 6 课</a></dd>
         <dt>领域服务 <span class="en">Domain Service</span></dt>
-        <dd>不自然属于任何实体/值对象的领域操作，无状态。</dd>
+        <dd>重要的领域过程，但不自然属于任何实体/值对象时的独立操作；无状态，名字进统一语言。默认仍是聚合方法——领域服务是例外出口。→ <a href="../lessons/0009-domain-service.html">第 9 课</a></dd>
       </dl>
     </div>
   </div>
