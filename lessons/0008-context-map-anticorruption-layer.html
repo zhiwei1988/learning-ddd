@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 8 课 · 上下文映射与防腐层：上下文之间怎么协作、怎么翻译</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  /* Upstream→downstream relationship line with a translating layer in between.
+     Reuses .ctx-box from course.css; only the arrow + acl badge are local. */
+  .rel-map { margin: 1.5rem 0; }
+  .rel-row { display: grid; grid-template-columns: 1fr; gap: 0.75rem; align-items: stretch; }
+  @media (min-width: 720px) { .rel-row { grid-template-columns: 1fr auto 1fr; align-items: center; } }
+  .rel-arrow {
+    text-align: center; font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 0.8rem; color: var(--accent); line-height: 1.4;
+  }
+  .rel-arrow .big { font-size: 1.4rem; display: block; }
+  .acl-badge {
+    display: inline-block; border: 2px solid var(--accent); border-radius: 8px;
+    padding: 0.2rem 0.6rem; font-size: 0.78rem; font-weight: 600; color: var(--accent);
+    font-family: -apple-system, "PingFang SC", sans-serif; background: var(--card-bg);
+  }
+  .ud-tag {
+    float: right; font-size: 0.72rem; padding: 0.05rem 0.45rem; border-radius: 999px;
+    border: 1px solid var(--rule); color: var(--ink-soft);
+    font-family: -apple-system, "PingFang SC", sans-serif; font-weight: 400;
+  }
+</style>
+</head>
+<body>
+<article>
+  <p class="kicker">第 8 课 · 镜头拉回战略 · 约 16 分钟</p>
+  <h1>上下文映射与防腐层：上下文之间怎么协作、怎么翻译</h1>
+  <p class="lede">前四课你在<em>一个</em>上下文里把战术模式打磨得很利。可真实系统从来不止一个上下文——它们必须协作。
+  这一课回答你在<a href="0002-bounded-context.html">第 2 课</a>就问过、我一直欠着的那个问题：
+  <strong>两个上下文都要「客户」，字段是不是要抄两遍？</strong></p>
+
+  <div class="card">
+    <p><strong>你在地图上的位置：</strong>第 4–7 课都在<em>单个聚合/单个上下文内部</em>。这一课镜头拉到最远——
+    看多个上下文<strong>之间</strong>怎么连线。这是战略设计的收尾，也正是你 mission 里「主导一次领域建模」
+    最要紧的一块：<strong>划完上下文之后，怎么治理它们的关系</strong>。随时打开
+    <a href="../reference/ddd-map.html">DDD 全景地图</a> 定位。</p>
+  </div>
+
+  <h2>先热身：回顾检查</h2>
+  <p>两道回扣<a href="0007-repository-layered-architecture.html">第 7 课</a>那条最细的线（领域/应用/基础设施）。凭记忆作答。</p>
+  <div id="review"></div>
+
+  <h2>那个欠了六课的问题</h2>
+  <p>你的生鲜电商里，「客户（Customer）」这个词，<strong>销售上下文</strong>和<strong>物流上下文</strong>都要用。
+  第 2 课你追问过：那客户的字段，是不是两边各抄一份？听起来很浪费，直觉是「抽个共享的 Customer 类大家复用」。
+  <strong>这个直觉，恰恰是 DDD 要拦住你的地方。</strong></p>
+
+  <div class="ctx-map cols-2">
+    <div class="ctx-box">
+      <h4>销售上下文 <span style="font-weight:400;color:var(--ink-soft);font-size:0.85em">Sales</span></h4>
+      <p class="ctx-sub">这里的「客户」= 会买东西的人</p>
+      <ul>
+        <li><span class="ctx-word">Customer</span>：信用额度、会员等级、历史订单、优惠券</li>
+        <li>关心的是「他能不能下这单、给不给折扣」</li>
+      </ul>
+    </div>
+    <div class="ctx-box">
+      <h4>物流上下文 <span style="font-weight:400;color:var(--ink-soft);font-size:0.85em">Shipping</span></h4>
+      <p class="ctx-sub">这里的「客户」= 要收货的人</p>
+      <ul>
+        <li><span class="ctx-word">Consignee（收件人）</span>：收货地址、门牌、联系电话、配送时间窗</li>
+        <li>关心的是「货送到哪、几点送、谁签收」——<strong>不关心</strong>信用额度</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>看出来了吗：<strong>它们根本不是同一个东西。</strong>销售的 <code>Customer</code> 装着信用额度和优惠券，
+  物流的「收件人」装着地址和时间窗。硬抽一个「全字段大 Customer」给两边共用，结果是<em>两边都被塞进一堆自己不关心的字段</em>，
+  而且销售改一下会员逻辑，可能编译不过物流——这正是<a href="0001-ubiquitous-language.html">第 1 课</a>统一语言的铁律：
+  <strong>同一个词，在不同上下文里可以是不同的模型。</strong>所以答案是：<strong>不抄字段——各自建各自的模型</strong>，
+  两边只在<em>需要打交道</em>的那一刻，做一次翻译。</p>
+
+  <h2>上下文映射：先把「连线」如实画出来</h2>
+  <p>可它们终究要打交道：物流要拿到收货人信息，而这信息的源头在别处。两个上下文之间这条<strong>连线</strong>，
+  就是 Evans 说的<strong>上下文映射（Context Map）</strong>要处理的东西。</p>
+  <blockquote>
+    When connections must be made between different contexts, they tend to <strong>bleed into each other.</strong>
+    ... Identify each model in play on the project and define its bounded context. ... Describe the points of
+    contact between the models, outlining <strong>explicit translation</strong> for any communication...
+    <span class="zh">（当不同上下文之间必须建立连接时，它们往往会<strong>互相渗透、彼此污染</strong>。……识别项目里每一个在用的模型、定出它的限界上下文……
+    描述模型之间的接触点，为任何通信勾勒出<strong>显式的翻译</strong>。）</span>
+    <cite>— Eric Evans, <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a>，"Context Map"（第 29 页）</cite>
+  </blockquote>
+  <p>两个关键词：<strong>bleed into each other（互相污染）</strong>是病，<strong>explicit translation（显式翻译）</strong>是药。
+  上下文映射第一步不是设计、是<em>如实描述现状</em>：项目里有哪些上下文、哪两个之间有连线、每条连线是什么<strong>关系</strong>。
+  DDD 给了一套现成的关系模式当标签（合作、共享内核、客户/供应商、遵奉者、防腐层……全表见
+  <a href="../reference/context-map-patterns.html">关系模式速查表</a>）。这一课我们只深挖其中最能保护你的一个。</p>
+
+  <h2>先认一条主轴：上游 / 下游</h2>
+  <p>大多数连线上，两个上下文地位不对等：<strong>上游（Upstream）变了，下游（Downstream）得跟着改；下游怎么折腾，上游不受影响。</strong>
+  一句话——「谁能不管谁的死活」。你的物流上下文要依赖一个<strong>老旧的 CRM 系统</strong>拿收件人资料：CRM 是上游，物流是下游。
+  麻烦在于，这个 CRM 的模型很烂——字段是拼在一起的字符串、用空串 <code>""</code> 表示「没有」、还有个没人写文档的
+  <code>status_flag = 9</code>。身为下游，你怎么办？</p>
+
+  <h2>解法：防腐层（Anticorruption Layer）</h2>
+  <p>一个偷懒的选择是<strong>遵奉者（Conformist）</strong>——干脆盲从上游的模型，CRM 那套烂结构直接在物流代码里传来传去。
+  省事，但你精心设计的物流模型会被那些空串和神秘 flag 一点点同化。Evans 给下游的另一条路，是<strong>防腐层</strong>：</p>
+  <blockquote>
+    As a downstream client, create an <strong>isolating layer</strong> to provide your system with functionality of
+    the upstream system <strong>in terms of your own domain model.</strong> This layer talks to the other system
+    through its existing interface... Internally, the layer <strong>translates</strong> ... between the two models.
+    <span class="zh">（身为下游客户，建一层<strong>隔离层</strong>，把上游系统的功能<strong>以「你自己的领域模型」的措辞</strong>提供出来。
+    这层通过上游<em>现有的</em>接口与之通信……在内部，按需在两个模型之间<strong>翻译</strong>。）</span>
+    <cite>— DDD Reference，"Anticorruption Layer"（第 34 页）</cite>
+  </blockquote>
+
+  <div class="rel-map">
+    <div class="rel-row">
+      <div class="ctx-box" style="border-style:solid;border-color:var(--rule)">
+        <span class="ud-tag">上游 Upstream</span>
+        <h4>老旧 CRM</h4>
+        <p class="ctx-sub" style="margin:0.3rem 0 0">烂模型：<code>full_nm</code> 带空格、<code>ctry_cd=""</code> 表示未知、<code>status_flag=9</code> 无文档</p>
+      </div>
+      <div class="rel-arrow">
+        <span class="big">→</span>
+        <span class="acl-badge">防腐层<br>翻译 + 隔离</span>
+        <span class="big">→</span>
+      </div>
+      <div class="ctx-box" style="border-color:var(--accent)">
+        <span class="ud-tag">下游 Downstream</span>
+        <h4>物流上下文（你的模型）</h4>
+        <p class="ctx-sub" style="margin:0.3rem 0 0">干净：<code>Consignee</code> 一构造就合法、「未知」= <code>optional</code> 的缺席，没有神秘 flag</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>C++：防腐层就是你上一课写过的端口/适配器</h2>
+  <p>这里有个让你会心一笑的地方：<strong>防腐层，你上一课已经会写了。</strong>第 7 课的 <code>OrderRepository</code>——
+  端口在领域层、<code>SqlOrderRepository</code> 适配器在基础设施层，翻译「数据库行 ↔ 领域对象」。
+  把「数据库」换成「<strong>另一个上下文的模型</strong>」，一模一样的形状，就是防腐层：</p>
+
+  <pre><code>// ===== UPSTREAM: the legacy CRM's model — someone else's ugly world =====
+struct CrmContactRecord {
+  std::string full_nm;      // combined name, may be padded with spaces
+  std::string ctry_cd;      // "" is a SENTINEL meaning "unknown"
+  int         status_flag;  // 9 = undocumented legacy junk
+};
+
+// ===== YOUR DOMAIN: Shipping's own clean model (knows nothing of the CRM) =====
+class Consignee {                         // valid-by-construction
+ public:
+  Consignee(std::string name, std::optional&lt;CountryCode&gt; country);  // throws if name empty
+  const std::optional&lt;CountryCode&gt;&amp; country() const;  // "unknown" = honest absence
+};
+
+class ConsigneeDirectory {                // the PORT — phrased in YOUR terms
+ public:
+  virtual std::optional&lt;Consignee&gt; find(int id) const = 0;
+};
+
+// ===== THE ANTICORRUPTION LAYER — the ONLY place that names CrmContactRecord =====
+class CrmConsigneeDirectory : public ConsigneeDirectory {   // the ADAPTER
+  std::optional&lt;Consignee&gt; find(int id) const override {
+    auto rec = crm_.lookup(id);           // talk to the foreign system as-is
+    if (!rec) return std::nullopt;
+    return translate(*rec);               // &lt;-- anticorruption happens HERE
+  }
+  static Consignee translate(const CrmContactRecord&amp; r) {
+    std::optional&lt;CountryCode&gt; country;
+    if (!r.ctry_cd.empty()) country = CountryCode{r.ctry_cd};  // ""  -&gt; nullopt
+    // r.status_flag is simply NOT part of our model -&gt; it can never leak in.
+    return Consignee{trim(r.full_nm), country};                // trim the padding
+  }
+};</code></pre>
+
+  <div class="card">
+    <p><strong>看这个对照就懂了防腐层在防什么：</strong>CRM 用空串 <code>""</code> 表示「国家未知」，用没人懂的
+    <code>status_flag = 9</code> 表示某种遗留状态。<strong>翻译层是唯一认识 <code>CrmContactRecord</code> 的地方</strong>——
+    过了这道墙，你的物流代码只见得到干净的 <code>Consignee</code>：「未知」是老老实实的 <code>std::optional</code> 缺席，
+    而那个神秘 flag <em>压根不在你的模型里</em>，想泄漏都无处可泄。这就是 <code>Repository</code> 的
+    <code>SqlOrderRepository</code>（挡数据库）升级成挡「另一个上下文」——同一把尺子，量到了战略层。</p>
+  </div>
+
+  <div class="card">
+    <p><strong>本课代码全部真编译过。</strong><code>code/lesson8_check.cc</code>，clang 17 / <code>-std=c++20 -Wall -Wextra</code> 零告警。
+    它断言了：翻译层把带空格的名字 trim 干净、把哨兵 <code>""</code> 变成 <code>nullopt</code>、上游查不到时返回 honest 的 <code>nullopt</code>。
+    还有一条<strong>用绿色断言证明的坏事</strong>：如果走遵奉者的路直接传 <code>CrmContactRecord</code>，
+    那个 <code>""</code> 和 <code>status_flag=9</code> 就在原始记录里明晃晃地存在（<code>assert(raw.ctry_cd == "")</code> 通过）——
+    而防腐层的产物里，它俩一个变成了诚实的缺席、一个根本不存在。同样的输入，污染被挡在了边界。跑法见
+    <a href="../code/README.md">code/README.md</a>。</p>
+  </div>
+
+  <h2>把伏笔收干净：所以「客户」到底抄不抄</h2>
+  <p>回到那个欠了六课的问题。答案现在完整了：</p>
+  <ul>
+    <li><strong>不抄字段。</strong>销售的 <code>Customer</code> 和物流的 <code>Consignee</code> 是<em>两个上下文各自的模型</em>，
+    各装各关心的东西。硬抽一个共享大类，是把<a href="../reference/context-map-patterns.html">共享内核</a>用错了地方——
+    那玩意儿只该共享<em>一小块</em>、且要两队持续协商，代价很高。</li>
+    <li><strong>要打交道时，做显式翻译。</strong>物流需要收件人资料，就通过一个<strong>防腐层</strong>去上游取、翻译成自己的
+    <code>Consignee</code>。跨的是<em>上下文</em>边界，翻译层挡住上游模型的污染——这跟你
+    <a href="0005-aggregate.html">第 5 课</a>「跨<em>聚合</em>只用 id 引用」是同一种智慧在不同尺度上的体现：
+    <strong>边界之外的东西，不要整个拽进来。</strong></li>
+  </ul>
+
+  <h2>练一练：给每条连线贴一个关系标签</h2>
+  <p><strong>场景：</strong>你在评审一份架构设计，图上有几条上下文之间的连线。每一条，是下面哪个关系模式？
+  （完整定义见 <a href="../reference/context-map-patterns.html">关系模式速查表</a>；这题只用其中四个。）</p>
+  <div id="sort"></div>
+
+  <h2>试一试</h2>
+  <div id="quiz"></div>
+
+  <h2>主推读物</h2>
+  <p>本课首选延伸阅读：<a href="https://github.com/ddd-crew/context-mapping"><strong>ddd-crew/context-mapping</strong></a>——
+  DDD 社区维护的上下文映射速查表，一页图把所有关系模式和上下游标记讲清楚，还配了 Miro 模板和一个
+  <a href="https://github.com/ddd-crew/context-mapping-quiz">配套小测</a>，正好拿来练你这一课学的「贴标签」。
+  权威定义见 <a href="../reference/DDD_Reference_2015-03.pdf">DDD Reference</a> 第 29 页（上下文映射）与第 34 页（防腐层），本课引文都出自这两页；
+  全部九种关系模式我已整理进 <a href="../reference/context-map-patterns.html">关系模式速查表</a>，评审设计时随手翻。</p>
+
+  <footer class="lesson-footer">
+    <p><strong>做完告诉我：你答错了哪几道、当时选的是哪个</strong>（全对就说「全对」）。
+    本课三个计分区——课首<em>回顾检查</em>、中段<em>练一练</em>、课末<em>试一试</em>，每个做完底部会弹一行「得分：X / N」。
+    我要的是错题（比总分信息量大），按它决定下一课难度。</p>
+    <p><strong>有不清楚的？</strong>问我。这一课常见的卡点：
+    「防腐层和第 7 课的仓储到底啥区别？」（——形状一样，<em>挡的东西不同</em>：仓储挡数据库/技术，防腐层挡<em>另一个上下文的模型</em>）
+    「防腐层是不是就是加个 DTO 转换？」（——DTO 转换是它的手段之一，但重点在<em>意图</em>：主动隔离，不让上游的概念/词汇渗进你的领域）
+    「上下文映射是要画 UML 吗？」（——不必。它先是一种<em>认识</em>：项目里有几个上下文、每条连线什么关系。一张便签就能起步）</p>
+    <p><strong>下一课预告：领域服务（Domain Service）</strong>——
+    战术地图上最后一块拼图。有些业务逻辑<em>不自然地属于任何一个实体或值对象</em>（比如「把钱从一个账户转到另一个」，
+    它既不该住在转出账户里、也不该住在转入账户里）。这时就该用领域服务。补齐它，你的战术工具箱就集齐了，
+    之后进入 mission 的正题：<strong>做一次真实的领域建模，和用 DDD 视角评审设计</strong>。</p>
+  </footer>
+</article>
+
+<script src="../assets/categorize.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz(document.getElementById("review"), [
+  {
+    stem: "一个用例「取出订单 → confirm() → 保存 → 发布事件」要么全提交、要么全回滚。「这次实际把 begin/commit 画在哪几步外面」这个决定，属于哪一层？",
+    options: [
+      "应用层——它是用例的编排决策",
+      "领域层——因为第 5 课说过聚合边界 = 事务边界",
+      "基础设施层——因为事务是数据库提供的机制",
+      "领域层——因为 confirm() 是业务规则"
+    ],
+    answer: 0,
+    explain: "应用层。这里藏着两个「事务边界」，别混：① 第 5 课的「聚合边界 = 事务边界」是<em>领域建模约束</em>（一个事务最多改一个聚合，聚合规定了能覆盖的最大范围，且领域层根本不知道『事务』这个词存在）；② 这一题问的是<em>运行时</em>——把 begin/commit 实际画在用例的哪几步外面，那是编排职责，属应用层。基础设施层只提供 begin/commit 的机制，不决定画在哪。选项 B 正是那个术语碰撞的坑——闪回对了概念，但用错了地方。"
+  },
+  {
+    stem: "「把 OrderConfirmed 事件真正通过网络送进 Kafka」这段代码，属于哪一层？",
+    options: [
+      "基础设施层——它是 EventPublisher 端口的适配器实现",
+      "应用层——因为发布事件是编排的一部分",
+      "领域层——因为事件是领域模型的一部分",
+      "应用层——因为它协调了下游系统"
+    ],
+    answer: 0,
+    explain: "基础设施层。这里也要拆成两半：应用层的编排<em>决定「发」</em>（<code>for (e : pull_events()) bus.publish(e)</code>），但「真的把字节送进 Kafka」是 <code>EventPublisher</code> 这个领域层端口在<em>基础设施层的适配器实现</em>。领域层只知道「有个 publish 能把事件发出去」，绝不认识 Kafka——否则就 #include 了 Kafka 客户端，分层当场塌。这跟 <code>OrderRepository</code>（端口）vs <code>SqlOrderRepository</code>（适配器）是同一条线。记住这条『端口/适配器』的分法——这一课的防腐层，用的正是它。"
+  }
+], {
+  perfect: "领域/应用/基础设施那条最细的线，你彻底拿稳了。而且你已经在用『端口/适配器』的分法了——这一课的防腐层正是它的又一个化身。",
+  imperfect: "先看答错那条的解释。这两题就是第 7 课练一练你失手的那两道的同源问题——而它俩的『端口/适配器』分法，正是这一课防腐层的基础。"
+});
+
+renderCategorize(document.getElementById("sort"), {
+  perfect: "关系模式的标签你贴得很准——尤其没被『遵奉者 vs 防腐层』那对最容易混的骗到。",
+  imperfect: "看答错那条：关键分辨点是『下游对上游烂模型的态度』——认命=遵奉者，自建翻译层自保=防腐层。",
+  buckets: ["防腐层", "遵奉者", "共享内核", "各行其道"],
+  items: [
+    {
+      text: "「我们的物流上下文要用老旧 CRM 的数据，但 CRM 模型很烂。我们建了一层翻译，把它的字段转成我们自己的 Consignee，绝不让它的结构进我们的代码。」",
+      bucket: 0,
+      explain: "防腐层（Anticorruption Layer）。下游主动建一层隔离/翻译，把上游功能『以自己的模型的措辞』提供出来，挡住上游烂模型的污染。关键词是『绝不让它进我们的代码』——这是防御姿态，也是本课的主角。"
+    },
+    {
+      text: "「上游那个团队根本不搭理我们的需求。争不过，我们干脆直接照搬他们的数据模型，省得翻译，集成一下就通了。」",
+      bucket: 1,
+      explain: "遵奉者（Conformist）。同样是上下游、上游同样不给下游好脸色，但下游的选择相反——<em>盲从</em>上游模型、放弃自己的理想模型，换取集成的极大简化。它和防腐层是同一处境下的两条岔路：认命 vs 自保。这题是本练习的陷阱，考的就是这对最易混的区分。"
+    },
+    {
+      text: "「订单上下文和计费上下文由同一个核心团队维护，两边都要用『金额+币种』这套小模型。我们把它划成一小块显式共享的代码，改动必须两边商量。」",
+      bucket: 2,
+      explain: "共享内核（Shared Kernel）。两个上下文<em>显式共享领域模型的一小块</em>（连同代码），这块有特殊地位、未经协商不得改。注意它的前提：两队关系紧密、且共享的是<strong>一小块</strong>。把整个『大 Customer』拿来共享，就是把这个模式用过了头——正是本课开头拦住你的那个直觉。"
+    },
+    {
+      text: "「员工报销的内部小工具，和我们的电商核心系统八竿子打不着。我们决定两者完全不集成，各写各的。」",
+      bucket: 3,
+      explain: "各行其道（Separate Ways）。两块功能没有实质关系，就彻底切断——集成永远昂贵，收益有时很小。评审时要敢下这一刀：不是所有上下文都得连起来。硬去集成两个不相干的东西，是常见的过度设计。"
+    }
+  ]
+});
+
+renderQuiz(document.getElementById("quiz"), [
+  {
+    stem: "「客户」这个词，销售上下文和物流上下文都要用。DDD 的处理方式是？",
+    options: [
+      "各建各的模型，只在需要打交道时做一次翻译",
+      "抽一个包含所有字段的共享 Customer 类，两边复用",
+      "以销售的 Customer 为准，物流照搬同一个类",
+      "建一张共享的 customer 表，两个上下文都读它"
+    ],
+    answer: 0,
+    explain: "各建各的模型。销售的『客户』装信用额度/优惠券，物流的『收件人』装地址/时间窗——同一个词、不同的模型（第 1 课统一语言的铁律）。硬抽共享大类（选项 B）或共享表（选项 D），会让两边都被塞进不关心的字段、且一改俱改，正是 Evans 说的『bleed into each other』。选项 C 是遵奉者——省事但被同化，未必是这里想要的。"
+  },
+  {
+    stem: "上下文映射（Context Map）第一步要做的是什么？",
+    options: [
+      "如实描述现状：有哪些上下文、哪两个之间有连线、每条连线是什么关系",
+      "先设计出理想的上下文划分，再让团队照着改",
+      "把所有上下文合并成一个，消除连线",
+      "为每个上下文画出完整的 UML 类图"
+    ],
+    answer: 0,
+    explain: "先如实描述现状。Evans 原文：Map the existing terrain. Take up transformations later.（先把现有地形画出来，改造的事以后再说。）它首先是一种<em>认识</em>——项目里在用几个模型、每条连线什么关系——而不是一上来就设计或画 UML。看清楚了，才谈得上治理。"
+  },
+  {
+    stem: "「上游（Upstream）/ 下游（Downstream）」这条主轴说的是什么？",
+    options: [
+      "上游变化影响下游，下游影响不了上游——谁能不管谁的死活",
+      "上游是先开发的系统，下游是后开发的系统",
+      "上游在网络拓扑里更靠近数据库",
+      "上游代码量更大，下游更小"
+    ],
+    answer: 0,
+    explain: "是<em>影响力的不对称</em>：上游变了下游得跟着改，下游怎么折腾上游不受影响——「谁能不管谁的死活」。它跟开发顺序（B）、网络位置（C）、代码量（D）都无关。认清谁上游谁下游，才能判断下游该用哪种应对模式（遵奉者？防腐层？客户/供应商？）。"
+  },
+  {
+    stem: "防腐层（Anticorruption Layer）的核心意图是什么？",
+    options: [
+      "下游建一层隔离/翻译，把上游功能以自己的模型措辞提供，挡住污染",
+      "提升跨上下文调用的网络性能",
+      "让上游团队按下游的需求修改他们的模型",
+      "把两个上下文合并，从此不再需要翻译"
+    ],
+    answer: 0,
+    explain: "Evans 原文：create an isolating layer to provide your system with functionality of the upstream system <em>in terms of your own domain model</em>。核心是<strong>隔离 + 翻译</strong>：经上游现有接口通信，内部把它的模型翻译成你的模型，不让上游的概念/词汇渗进你的领域。选项 C 说的是『客户/供应商』或『合作关系』（需要上游配合）；防腐层恰恰用在上游<em>不</em>配合、你只能自保的时候。"
+  },
+  {
+    stem: "交错考察：防腐层在代码结构上，和你第 7 课写的 OrderRepository 是什么关系？",
+    options: [
+      "同一种端口/适配器结构——端口在你的领域层，适配器翻译外部世界",
+      "完全不同的两种东西，没有可比性",
+      "防腐层不需要接口，直接写死翻译函数即可",
+      "OrderRepository 属于战术设计，防腐层与代码结构无关"
+    ],
+    answer: 0,
+    explain: "同一种端口/适配器结构。<code>OrderRepository</code>（端口在领域层）+ <code>SqlOrderRepository</code>（适配器翻译『数据库行 ↔ 领域对象』）；防腐层就是把适配器翻译的对象从『数据库』换成『另一个上下文的模型』——<code>ConsigneeDirectory</code> 是端口，<code>CrmConsigneeDirectory</code> 是防腐层适配器。选项 D 错得有意思：防腐层<em>既</em>是战略概念（治理上下文关系）<em>又</em>能落成你早就会写的战术结构——这正是它优雅的地方。"
+  }
+]);
+</script>
+</body>
+</html>

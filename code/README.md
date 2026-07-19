@@ -24,6 +24,10 @@ c++ -std=c++20 -Wall -Wextra -o /tmp/lesson6_check lesson6_check.cc && /tmp/less
 # 第 7 课：三层 + 端口/适配器 / 应用服务在零 DB 下可测 / 双写裂缝（发件箱动机）
 c++ -std=c++20 -Wall -Wextra -o /tmp/lesson7_check lesson7_check.cc && /tmp/lesson7_check \
   && echo "ALL CLAIMS VERIFIED"
+
+# 第 8 课：防腐层（ACL）作为端口/适配器 / 翻译上游烂模型 / 遵奉者路线的污染泄漏
+c++ -std=c++20 -Wall -Wextra -o /tmp/lesson8_check lesson8_check.cc && /tmp/lesson8_check \
+  && echo "ALL CLAIMS VERIFIED"
 ```
 
 ## 文件
@@ -50,6 +54,14 @@ c++ -std=c++20 -Wall -Wextra -o /tmp/lesson7_check lesson7_check.cc && /tmp/less
   于是**零数据库、零真实总线**即可测通（依赖倒置的可测性红利）、存取原样往返（仓储的集合错觉）。
   又一条**用绿色断言证明的坏事**：`save` 与 `publish` 是两次独立写入，先发布后 `save` 崩溃 →
   下游收到了事件、但重载订单竟是「未确认」，`assert(!confirmed())` 通过——双写裂缝，引出发件箱（outbox）。
+- `lesson8_check.cc` — 验证 [第 8 课](../lessons/0008-context-map-anticorruption-layer.html) 的全部断言：
+  **防腐层（ACL）就是第 7 课那个端口/适配器结构的又一次化身**，只是适配器翻译的对象从「数据库」换成
+  「另一个上下文（老旧 CRM）的烂模型」。`ConsigneeDirectory` 是领域层端口（用物流自己的措辞），
+  `CrmConsigneeDirectory` 是防腐层适配器，且是**全程序里唯一认识 `CrmContactRecord` 的地方**。
+  断言：翻译把带空格的名字 trim 干净、把哨兵 `""` 译成 honest 的 `std::nullopt`、上游查不到时返回 `nullopt`。
+  又一条**用绿色断言证明的坏事**：若走遵奉者（Conformist）的路直接传 `CrmContactRecord`，
+  哨兵 `""` 与没文档的 `status_flag=9` 就在原始记录里明晃晃存在（`assert(raw.ctry_cd == "")` 通过）——
+  而防腐层的产物里它俩一个变成诚实缺席、一个根本不在模型里。同样输入，污染被挡在边界。
 
 已验证：Apple clang 17.0.0 / arm64 / `-std=c++20`，零告警通过、断言全绿。
 

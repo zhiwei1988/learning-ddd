@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>速查 · 上下文映射的关系模式</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  table { border-collapse: collapse; width: 100%; margin: 1.25rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: -apple-system, "PingFang SC", sans-serif; font-size: 0.82rem; color: var(--ink-soft); }
+  td.pat { font-weight: 600; white-space: nowrap; }
+  td.pat .en { display: block; font-weight: 400; font-size: 0.78rem; color: var(--ink-soft); font-family: "SF Mono", ui-monospace, monospace; }
+  .rel { font-family: -apple-system, "PingFang SC", sans-serif; font-size: 0.78rem; color: var(--accent); }
+  .axis { display: grid; grid-template-columns: 1fr; gap: 0.6rem; margin: 1.25rem 0; }
+  .axis .card { margin: 0; }
+  .axis h4 { margin: 0 0 0.3rem; font-family: -apple-system, "PingFang SC", sans-serif; font-size: 0.95rem; }
+  .axis p { margin: 0; font-size: 0.88rem; }
+</style>
+</head>
+<body>
+<article>
+  <p class="kicker">速查 · 战略设计</p>
+  <h1>上下文映射：关系模式速查表</h1>
+  <p class="lede">两个限界上下文一旦要协作，它们之间就存在一种<strong>关系</strong>。上下文映射（Context Map）
+  就是把这些关系画出来——先<em>如实描述</em>现状，再谈改造。下面是常见的关系模式；评审设计时，
+  第一步就是给每条连线贴上其中一个标签。定义对齐 <a href="DDD_Reference_2015-03.pdf">Evans DDD Reference</a>。</p>
+
+  <div class="card">
+    <p style="margin:0"><strong>先记住这条主轴：上游（Upstream, U）/ 下游（Downstream, D）。</strong>
+    上游的变化影响下游，下游影响不了上游——「谁能不管谁的死活」。下面一半的模式都在回答同一个问题：
+    <em>身为下游，我拿上游的烂模型怎么办？</em></p>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>模式</th><th>关系</th><th>什么时候是它 / 它在说什么</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="pat">合作关系<span class="en">Partnership</span></td>
+        <td class="rel">双向 · 共存亡</td>
+        <td>两个上下文一荣俱荣、一损俱损（一方交付失败，另一方也交付不了）。两队<strong>协同计划、联合管理集成</strong>，相互依赖的特性排进同一个 release。<em>（p.30）</em></td>
+      </tr>
+      <tr>
+        <td class="pat">共享内核<span class="en">Shared Kernel</span></td>
+        <td class="rel">双向 · 共享一小块</td>
+        <td>两队<strong>显式共享领域模型的一小块</strong>（连同代码/库表）。这块有特殊地位，未经协商不得改，需持续集成对齐。亲密但危险——<strong>保持内核小</strong>。<em>（p.31）</em></td>
+      </tr>
+      <tr>
+        <td class="pat">客户/供应商<span class="en">Customer / Supplier</span></td>
+        <td class="rel">U → D · 供应方买账</td>
+        <td>上下游关系，但<strong>下游的需求会进上游的排期</strong>。下游扮「客户」参与上游的计划会，用联合验收测试锁定接口。健康的上下游。<em>（p.32）</em></td>
+      </tr>
+      <tr>
+        <td class="pat">遵奉者<span class="en">Conformist</span></td>
+        <td class="rel">U → D · 下游认命</td>
+        <td>上游<strong>没有动力</strong>满足下游，下游无力议价。于是下游<strong>盲从上游的模型</strong>，放弃自己的理想模型，换取集成的极大简化。省事，但你的模型被上游同化。<em>（p.33）</em></td>
+      </tr>
+      <tr>
+        <td class="pat">防腐层<span class="en">Anticorruption Layer</span></td>
+        <td class="rel">U → D · 下游自保</td>
+        <td>下游<strong>不肯</strong>被上游同化，于是建一层<strong>隔离/翻译层</strong>，把上游的功能<strong>以「自己的领域模型」的措辞</strong>提供出来。经上游现有接口通信，内部双向翻译。防的就是烂模型渗进来。<em>（p.34）</em></td>
+      </tr>
+      <tr>
+        <td class="pat">开放主机服务<span class="en">Open-host Service</span></td>
+        <td class="rel">U → 多个 D · 供应方视角</td>
+        <td>你的子系统被<strong>很多方</strong>要集成，逐个写翻译器吃不消。于是把访问定义成<strong>一套开放协议/服务</strong>，人人都用同一套。（每个客户端各自决定当遵奉者还是建防腐层。）<em>（p.35）</em></td>
+      </tr>
+      <tr>
+        <td class="pat">发布语言<span class="en">Published Language</span></td>
+        <td class="rel">翻译媒介</td>
+        <td>翻译要有<strong>共同语言</strong>。别拿谁的领域模型直接当交换格式（会被冻住）。改用一套<strong>文档良好的共享语言</strong>（行业数据交换标准，或自定），进出都往它翻译。常与开放主机服务搭配。<em>（p.36）</em></td>
+      </tr>
+      <tr>
+        <td class="pat">各行其道<span class="en">Separate Ways</span></td>
+        <td class="rel">无连接</td>
+        <td>两块功能<strong>没有实质关系</strong>就彻底切断——集成永远昂贵，收益有时很小。评审时要敢下这一刀：不是所有上下文都得连起来。<em>（p.37）</em></td>
+      </tr>
+      <tr>
+        <td class="pat">大泥球<span class="en">Big Ball of Mud</span></td>
+        <td class="rel">诊断标签</td>
+        <td>不是要你去建的，是要你<strong>如实标注</strong>的：一片模型混杂、边界不清的烂摊子。<strong>画个圈圈起来</strong>，别在里面做精细建模，并警惕它向外蔓延。<em>（p.38）</em></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>怎么用这张表（评审设计时）</h2>
+  <div class="axis">
+    <div class="card">
+      <h4>① 先找边界，再找连线</h4>
+      <p>把每个在用的模型识别成一个限界上下文并命名（名字进统一语言）。然后看哪些上下文之间有通信——那就是要贴标签的「连线」。</p>
+    </div>
+    <div class="card">
+      <h4>② 每条连线定上下游 + 贴一个模式</h4>
+      <p>谁能不管谁的死活？定出 U/D。再问下游怎么应对上游模型：认命（遵奉者）、自保（防腐层）、还是被照顾（客户/供应商）？</p>
+    </div>
+    <div class="card">
+      <h4>③ 一句话评审武器</h4>
+      <p>「这条连线是什么关系？」——如果对方答不上来，或答的是「就直接调呗 / 共用一张表」，那多半是一条<strong>没被治理的连线</strong>，模型正在悄悄互相污染（Evans：they tend to bleed into each other）。</p>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:var(--accent)">
+    <p style="margin:0"><strong>防腐层 = 你早就会写的端口/适配器。</strong>
+    <a href="../lessons/0007-repository-layered-architecture.html"><code>OrderRepository</code></a>（端口在领域层，
+    <code>SqlOrderRepository</code> 适配器在基础设施层，翻译「数据库行 ↔ 领域对象」）——把「数据库」换成
+    「另一个上下文的模型」，就是防腐层。见 <a href="../code/lesson8_check.cc"><code>lesson8_check.cc</code></a>：
+    <code>ConsigneeDirectory</code> 是端口，<code>CrmConsigneeDirectory</code> 是防腐层适配器，
+    把 CRM 的哨兵值 <code>""</code> 和没文档的 <code>status_flag=9</code> 挡在边界外。</p>
+  </div>
+
+  <p style="font-size:0.85rem;color:var(--ink-soft);margin-top:2rem">
+    延伸：<a href="https://github.com/ddd-crew/context-mapping">ddd-crew/context-mapping</a> 社区速查表（含 Miro 模板与配套小测）。
+    权威定义全部出自 <a href="DDD_Reference_2015-03.pdf">DDD Reference</a> 第 29–38 页。
+    回到 <a href="ddd-map.html">DDD 全景地图</a>。</p>
+</article>
+</body>
+</html>

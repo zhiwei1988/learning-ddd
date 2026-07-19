@@ -18,6 +18,8 @@
 - [Alistair Cockburn: Hexagonal Architecture（Ports & Adapters）](https://alistair.cockburn.us/hexagonal-architecture/)
   「依赖朝里指」最经典、最一般化的表述：领域在中心，数据库/UI/消息总线都是可插拔适配器，经端口（纯虚接口）连接。
   Use for: 第 7 课分层/仓储的延伸；把 DDD 分层提升到架构层面的框架（对齐用户的架构师目标）。第 7 课已作主推读物。
+- [GitHub: ddd-crew/context-mapping](https://github.com/ddd-crew/context-mapping)
+  DDD 社区维护的上下文映射速查表：一页图讲清全部关系模式（防腐层/遵奉者/共享内核/客户供应商/开放主机……）与上下游标记，配 Miro 模板 + [配套小测](https://github.com/ddd-crew/context-mapping-quiz)。Use for: 第 8 课主推读物；练「给上下文连线贴关系标签」这个评审技能。已核实（2026-07-19）。
 - [GitHub: awesome-ddd（heynickc）](https://github.com/heynickc/awesome-ddd)
   社区维护的 DDD/CQRS/ES 资源索引。Use for: 按需检索特定主题的文章与示例项目。
 
